@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="vmGreenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#15803d"/>
+      <stop offset="100%" stop-color="#166534"/>
+    </linearGradient>
+
+    <linearGradient id="vmMagentaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d946ef"/>
+      <stop offset="50%" stop-color="#be185d"/>
+      <stop offset="100%" stop-color="#9d174d"/>
+    </linearGradient>
+
+    <linearGradient id="rockGrad1" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#64748b"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+    <linearGradient id="rockGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="rockGradHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+
+    <!-- Circular text paths -->
+    <!-- Top arc: Clockwise from 9 o'clock to 3 o'clock -->
+    <path id="topTextArc" d="M 38,150 A 112,112 0 1,1 262,150" fill="none" />
+    <!-- Bottom arc: Counter-clockwise along bottom so text reads left to right -->
+    <path id="bottomTextArc" d="M 46,150 A 108,108 0 0,0 254,150" fill="none" />
+
+    <!-- Drop shadow for badge -->
+    <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Outer background circle -->
+  <circle cx="150" cy="150" r="144" fill="#ffffff" stroke="#166534" stroke-width="6" />
+  <circle cx="150" cy="150" r="140" fill="#fcfdfa" stroke="#22c55e" stroke-width="1.2" stroke-opacity="0.5" />
+
+  <!-- Outer Ring Text: VATHAN MINERALS (Top) -->
+  <text font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-weight="900"
+        font-size="19"
+        fill="#15803d"
+        letter-spacing="2.8">
+    <textPath href="#topTextArc" startOffset="50%" text-anchor="middle">
+      VATHAN MINERALS
+    </textPath>
+  </text>
+
+  <!-- Left Star / Floret -->
+  <g transform="translate(42, 150) scale(1.1)">
+    <circle cx="0" cy="0" r="2.2" fill="#15803d"/>
+    <path d="M 0,-6 Q 1,-2 5,-3 Q 2,0 5,3 Q 1,2 0,6 Q -1,2 -5,3 Q -2,0 -5,-3 Q -1,-2 0,-6 Z" fill="#15803d"/>
+  </g>
+
+  <!-- Right Star / Floret -->
+  <g transform="translate(258, 150) scale(1.1)">
+    <circle cx="0" cy="0" r="2.2" fill="#15803d"/>
+    <path d="M 0,-6 Q 1,-2 5,-3 Q 2,0 5,3 Q 1,2 0,6 Q -1,2 -5,3 Q -2,0 -5,-3 Q -1,-2 0,-6 Z" fill="#15803d"/>
+  </g>
+
+  <!-- Outer Ring Text: RLY . KODUR (Bottom) -->
+  <text font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-weight="900"
+        font-size="18"
+        fill="#15803d"
+        letter-spacing="4">
+    <textPath href="#bottomTextArc" startOffset="50%" text-anchor="middle">
+      RLY · KODUR
+    </textPath>
+  </text>
+
+  <!-- Inner Concentric Circle -->
+  <circle cx="150" cy="150" r="90" fill="#ffffff" stroke="#581c87" stroke-width="4.5" />
+  <circle cx="150" cy="150" r="87" fill="none" stroke="#a855f7" stroke-width="1" stroke-opacity="0.4" />
+
+  <!-- Center Text: VM -->
+  <text x="150" y="108"
+        font-family="'Segoe UI', Roboto, 'Arial Black', sans-serif"
+        font-weight="900"
+        font-size="34"
+        fill="url(#vmMagentaGrad)"
+        text-anchor="middle"
+        letter-spacing="1">
+    VM
+  </text>
+
+  <!-- Barytes Minerals Ore Cluster / Rocks -->
+  <g id="mineralCluster" filter="url(#softGlow)">
+    <!-- Base bed ground layer -->
+    <path d="M 88,185 Q 120,188 150,187 Q 185,188 212,185 Q 210,196 195,202 Q 150,210 105,202 Q 90,196 88,185 Z"
+          fill="#334155" opacity="0.3" />
+
+    <!-- Rock Lump 1: Bottom Left -->
+    <path d="M 104,168 L 122,156 L 134,166 L 126,182 L 105,180 Z"
+          fill="url(#rockGrad1)" stroke="#1e293b" stroke-width="1.2" stroke-linejoin="round" />
+    <path d="M 104,168 L 122,156 L 120,172 L 105,180 Z"
+          fill="url(#rockGradHighlight)" opacity="0.75" />
+
+    <!-- Rock Lump 2: Bottom Right -->
+    <path d="M 166,166 L 178,154 L 198,166 L 194,182 L 170,183 Z"
+          fill="url(#rockGrad2)" stroke="#1e293b" stroke-width="1.2" stroke-linejoin="round" />
+    <path d="M 178,154 L 198,166 L 186,176 Z"
+          fill="url(#rockGradHighlight)" opacity="0.6" />
+
+    <!-- Rock Lump 3: Bottom Center -->
+    <path d="M 124,172 L 142,160 L 158,160 L 174,172 L 166,188 L 132,188 Z"
+          fill="url(#rockGrad2)" stroke="#1e293b" stroke-width="1.2" stroke-linejoin="round" />
+    <path d="M 142,160 L 158,160 L 152,175 L 134,175 Z"
+          fill="url(#rockGradHighlight)" opacity="0.7" />
+
+    <!-- Rock Lump 4: Mid Left -->
+    <path d="M 120,146 L 136,134 L 148,146 L 140,162 L 122,158 Z"
+          fill="url(#rockGrad1)" stroke="#1e293b" stroke-width="1.2" stroke-linejoin="round" />
+    <path d="M 120,146 L 136,134 L 135,150 L 122,158 Z"
+          fill="url(#rockGradHighlight)" opacity="0.8" />
+
+    <!-- Rock Lump 5: Mid Right -->
+    <path d="M 152,146 L 166,134 L 180,146 L 176,160 L 150,162 Z"
+          fill="url(#rockGrad2)" stroke="#1e293b" stroke-width="1.2" stroke-linejoin="round" />
+    <path d="M 152,146 L 166,134 L 168,152 Z"
+          fill="url(#rockGradHighlight)" opacity="0.65" />
+
+    <!-- Rock Lump 6: Top Apex Barytes Crystal -->
+    <path d="M 138,128 L 150,116 L 162,128 L 158,144 L 142,144 Z"
+          fill="url(#rockGrad1)" stroke="#1e293b" stroke-width="1.2" stroke-linejoin="round" />
+    <!-- Top facets -->
+    <path d="M 138,128 L 150,116 L 151,135 L 142,144 Z"
+          fill="#cbd5e1" opacity="0.85" />
+    <path d="M 150,116 L 162,128 L 151,135 Z"
+          fill="url(#rockGradHighlight)" opacity="0.6" />
+
+    <!-- Fine mineral facet lines and highlights -->
+    <circle cx="150" cy="118" r="1.5" fill="#f8fafc" />
+    <circle cx="136" cy="136" r="1.2" fill="#f8fafc" />
+    <circle cx="165" cy="136" r="1.2" fill="#f8fafc" />
+  </g>
+</svg>
