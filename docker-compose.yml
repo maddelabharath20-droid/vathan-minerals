@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Ferrari#9car
+      MYSQL_DATABASE: barytes_management
+      MYSQL_USER: vathan_user
+      MYSQL_PASSWORD: VathanPassword#2026
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pFerrari#9car"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: Ferrari#9car
+      DB_NAME: barytes_management
+      JWT_SECRET: super_secure_vathan_minerals_secret_key_32_chars_min
+      ADMIN_NAME: "Maddela Venkata Subbaiah"
+      ADMIN_EMAIL: "admin@vathanminerals.com"
+      ADMIN_PASSWORD: "ChangeMe_123456"
+
+volumes:
+  db_data:

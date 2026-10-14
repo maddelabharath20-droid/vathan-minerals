@@ -1,0 +1,15 @@
+{
+  "name": "vathan-minerals-platform",
+  "version": "1.0.0",
+  "description": "VATHAN MINERALS - Mining, Processing & Biometric Operations Platform",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm install --prefix backend && npm install --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "node backend/src/server.js",
+    "seed": "node backend/src/seedAdmin.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
