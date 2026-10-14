@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: vathan-minerals-platform
+    runtime: node
+    plan: free
+    buildCommand: npm run postinstall && npm run build
+    startCommand: node backend/src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_HOST
+        fromDatabase:
+          name: vathan-minerals-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: vathan-minerals-db
+          property: port
+      - key: DB_USER
+        fromDatabase:
+          name: vathan-minerals-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: vathan-minerals-db
+          property: password
+      - key: DB_NAME
+        fromDatabase:
+          name: vathan-minerals-db
+          property: database
+      - key: DB_SSL
+        value: "true"
+      - key: ADMIN_NAME
+        value: Maddela Venkata Subbaiah
+      - key: ADMIN_EMAIL
+        value: admin@vathanminerals.com
+      - key: ADMIN_PASSWORD
+        value: ChangeMe_123456
+      - key: WEBAUTHN_RP_ID
+        sync: false
+      - key: WEBAUTHN_ORIGIN
+        sync: false
+
+databases:
+  - name: vathan-minerals-db
+    databaseName: barytes_management
+    user: vathan_admin
+    plan: free
