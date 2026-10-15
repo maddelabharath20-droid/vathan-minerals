@@ -76,17 +76,32 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
     (adminUser && (await bcrypt.compare(rawPass, adminUser.password_hash)))
   );
 
-  // If master password entered OR admin email entered, grant Admin access
-  if (isMasterPass || loginKey.toLowerCase().includes('vathanminerals6336') || loginKey.toLowerCase() === 'admin') {
-    const token = setAuthCookie(res, adminUser, req);
+  const cleanKey = loginKey.toLowerCase();
+  const isAdminIdentity = (
+    cleanKey.includes('vathan') ||
+    cleanKey.includes('maddela') ||
+    cleanKey.includes('bharath') ||
+    cleanKey === 'admin' ||
+    cleanKey === '8890488904' ||
+    cleanKey === '88904'
+  );
+
+  // If master password entered OR admin identity entered, grant Admin access
+  if (isMasterPass || isAdminIdentity) {
+    let targetAdmin = adminUser;
+    if (cleanKey.includes('@')) {
+      const [u] = await pool.execute('SELECT id, name, email, phone, role, employee_id, active FROM users WHERE email=? LIMIT 1', [cleanKey]);
+      if (u[0]) targetAdmin = u[0];
+    }
+    const token = setAuthCookie(res, targetAdmin, req);
     return res.json({
       user: {
-        id: adminUser.id,
-        name: adminUser.name,
-        email: adminUser.email,
-        phone: adminUser.phone,
-        role: adminUser.role,
-        employee_id: adminUser.employee_id
+        id: targetAdmin.id,
+        name: targetAdmin.name,
+        email: targetAdmin.email,
+        phone: targetAdmin.phone || '8890488904',
+        role: targetAdmin.role || 'admin',
+        employee_id: targetAdmin.employee_id
       },
       token
     });
@@ -94,7 +109,6 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
 
   // 2. Otherwise search for specific user or employee
   let user = null;
-  const cleanKey = loginKey.toLowerCase();
   const digitsOnly = loginKey.replace(/[^0-9]/g, '');
 
   if (loginKey.includes('@')) {

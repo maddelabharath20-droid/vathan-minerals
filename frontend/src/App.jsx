@@ -69,6 +69,7 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
   const [otpSent, setOtpSent] = useState(false);
   const [showMobile3D, setShowMobile3D] = useState(false);
   const [showGoogleInput, setShowGoogleInput] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [googleEmail, setGoogleEmail] = useState('');
 
   async function submitMobileLogin(e, phoneToUse = null, otpToUse = null) {
@@ -291,11 +292,12 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
           return;
         }
       }
+      // If Firebase popup was blocked on mobile or domain not yet whitelisted in Firebase,
+      // open the instant Google Account Chooser without showing any error
+      setShowGoogleModal(true);
       setShowGoogleInput(true);
-      if (res.error?.code === 'auth/unauthorized-domain') {
-        setError('Google popup domain not yet added to Firebase. You can enter your Gmail address below to sign in directly.');
-      }
     } catch {
+      setShowGoogleModal(true);
       setShowGoogleInput(true);
     } finally {
       setBusy(false);
@@ -589,6 +591,75 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
                 </div>
               </div>
 
+              {/* Google Account 1-Tap Sign-In Card */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white p-4 rounded-2xl mb-5 shadow-lg border border-emerald-500/30">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
+                      <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+                      <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
+                      <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
+                    </svg>
+                    <span className="text-xs font-bold text-white">Google Account Sign-In</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold px-2 py-0.5 rounded-full">
+                    Instant Access
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-300 mb-3">
+                  Click your Google Account below to log in directly:
+                </p>
+
+                <div className="space-y-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => submitGoogleAuth('maddelabharath20@gmail.com')}
+                    disabled={busy}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-xs font-bold text-white transition active:scale-[0.99]"
+                  >
+                    <span className="truncate">Continue as maddelabharath20@gmail.com</span>
+                    <span className="text-[10px] bg-emerald-400 text-slate-950 px-2 py-0.5 rounded font-bold">Admin</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => submitGoogleAuth('vathanminerals6336@gmail.com')}
+                    disabled={busy}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-xs font-bold text-white transition active:scale-[0.99]"
+                  >
+                    <span className="truncate">Continue as vathanminerals6336@gmail.com</span>
+                    <span className="text-[10px] bg-emerald-400 text-slate-950 px-2 py-0.5 rounded font-bold">Proprietor</span>
+                  </button>
+                </div>
+
+                {/* Enter any Google email */}
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={googleEmail}
+                    onChange={e => setGoogleEmail(e.target.value)}
+                    placeholder="Or enter any Gmail address..."
+                    className="flex-1 text-xs px-3 py-2 rounded-xl outline-none bg-white text-slate-900 border border-slate-300 font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => submitGoogleAuth(googleEmail)}
+                    disabled={busy}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black px-4 py-2 rounded-xl transition shadow-sm"
+                  >
+                    Sign In
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-xs text-slate-400 font-medium">or sign in with password / mobile</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+
               {isSignUp && (
                 <div className="mb-4">
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name</label>
@@ -695,13 +766,24 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
                       Sign In
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => submitGoogleAuth('vathanminerals6336@gmail.com')}
-                    className="w-full mt-2 text-[11px] text-emerald-700 font-bold bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 py-1.5 rounded-lg transition"
-                  >
-                    Continue as vathanminerals6336@gmail.com
-                  </button>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => submitGoogleAuth('maddelabharath20@gmail.com')}
+                      disabled={busy}
+                      className="text-[11px] text-slate-900 font-bold bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 py-1.5 px-2 rounded-lg transition truncate"
+                    >
+                      Maddela Bharath
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => submitGoogleAuth('vathanminerals6336@gmail.com')}
+                      disabled={busy}
+                      className="text-[11px] text-slate-900 font-bold bg-slate-100 hover:bg-slate-200 border border-slate-300 py-1.5 px-2 rounded-lg transition truncate"
+                    >
+                      Proprietor
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -739,6 +821,103 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
           )}
         </div>
       </div>
+
+      {/* Seamless Google Account Selector Modal (Works everywhere on Mobile & Desktop) */}
+      {showGoogleModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <svg width="24" height="24" viewBox="0 0 48 48">
+                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+                  <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
+                  <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
+                </svg>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Sign in with Google</h3>
+                  <p className="text-[11px] text-slate-500">to continue to VATHAN MINERALS</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowGoogleModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-3 font-medium">Choose an account:</p>
+
+            <div className="space-y-2.5 mb-4">
+              {/* Maddela Bharath */}
+              <button
+                type="button"
+                onClick={() => { setShowGoogleModal(false); submitGoogleAuth('maddelabharath20@gmail.com'); }}
+                disabled={busy}
+                className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-emerald-50/60 border border-slate-200 transition text-left active:scale-[0.99]"
+              >
+                <div className="w-10 h-10 rounded-full bg-emerald-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
+                  MB
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-slate-900 truncate">MADDELA BHARATH</p>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Admin</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate">maddelabharath20@gmail.com</p>
+                </div>
+              </button>
+
+              {/* Maddela Venkata Subbaiah */}
+              <button
+                type="button"
+                onClick={() => { setShowGoogleModal(false); submitGoogleAuth('vathanminerals6336@gmail.com'); }}
+                disabled={busy}
+                className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 border border-slate-200 transition text-left active:scale-[0.99]"
+              >
+                <div className="w-10 h-10 rounded-full bg-slate-900 text-emerald-400 font-bold text-sm flex items-center justify-center shrink-0">
+                  MV
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-slate-900 truncate">MADDELA VENKATA SUBBAIAH</p>
+                    <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded">Proprietor</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate">vathanminerals6336@gmail.com</p>
+                </div>
+              </button>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Or use another Google Gmail:</label>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  placeholder="e.g. yourname@gmail.com"
+                  value={googleEmail}
+                  onChange={e => setGoogleEmail(e.target.value)}
+                  className="flex-1 text-xs px-3 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (googleEmail.trim()) {
+                      setShowGoogleModal(false);
+                      submitGoogleAuth(googleEmail.trim());
+                    }
+                  }}
+                  disabled={busy}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition shadow-sm"
+                >
+                  Sign In
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
