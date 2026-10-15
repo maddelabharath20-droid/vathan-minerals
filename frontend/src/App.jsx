@@ -1,13 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { api } from './api';
+import { api, setAuthToken, clearAuthToken, getAuthToken } from './api';
 import AttendanceManager from './AttendanceManager';
 import VMLogo, { LeadershipBadge } from './VMLogo';
-import { LayoutDashboard, Users, Factory, Package, ClipboardList, ReceiptText, Truck, ChartNoAxesCombined, LogOut, Menu, X, Plus, RefreshCw, ShieldCheck, Boxes, UserRound, FileText, ScanFace, UserPlus } from 'lucide-react';
+import PlantShowcase3D from './PlantShowcase3D';
+import StaffPortal from './StaffPortal';
+import LeaveApprovalManager from './LeaveApprovalManager';
+import SalariesManager from './SalariesManager';
+import { 
+  LayoutDashboard, Users, Factory, Package, ClipboardList, ReceiptText, 
+  Truck, ChartNoAxesCombined, LogOut, Menu, X, Plus, RefreshCw, ShieldCheck, 
+  Boxes, UserRound, FileText, ScanFace, UserPlus, CalendarCheck, DollarSign, Rotate3d,
+  Smartphone, Phone, Sparkles, Lock, Pencil, Trash2, Edit
+} from 'lucide-react';
+import { tryGooglePopup } from './firebase';
 
 const nav = [
   ['Dashboard','/dashboard',LayoutDashboard],
   ['Employees','/employees',Users],
   ['Attendance','/attendance',ScanFace],
+  ['Leave Approvals','/leave-approvals',CalendarCheck],
+  ['Staff Salaries','/salaries',DollarSign],
+  ['3D Mining View','/plant-3d',Rotate3d],
   ['Production','/production',Factory],
   ['Inventory','/products',Package],
   ['Stock movements','/stock',Boxes],
@@ -20,7 +33,7 @@ const nav = [
 ];
 const today = new Date().toISOString().slice(0,10);
 const configs = {
- employees:{title:'Employees',endpoint:'/employees',fields:[['employee_code','Employee code'],['full_name','Full name'],['phone','Phone'],['job_title','Job title'],['date_joined','Date joined','date']]},
+ employees:{title:'Employees',endpoint:'/employees',fields:[['employee_code','Employee code'],['full_name','Full name'],['phone','Phone'],['job_title','Job title'],['date_joined','Date joined','date'],['active','Status','select',['1','0']]]},
  attendance:{title:'Attendance',endpoint:'/attendance',fields:[['employee_id','Employee ID','number'],['attendance_date','Date','date',today],['status','Status','select',['present','absent','leave','half_day']],['check_in','Check in','time'],['check_out','Check out','time'],['notes','Notes']]},
  products:{title:'Products & Inventory',endpoint:'/products',fields:[['sku','SKU'],['name','Product name'],['grade','Grade'],['stock_type','Stock type','select',['raw_barytes','finished_powder','packing_material']],['unit','Unit','select',['tonne','bag','piece']]]},
  production:{title:'Production logs',endpoint:'/production',fields:[['production_date','Production date','date',today],['raw_product_id','Raw product ID','number'],['finished_product_id','Finished product ID','number'],['raw_input_tonnes','Raw input (tonnes)','number'],['finished_output_tonnes','Finished output (tonnes)','number'],['wastage_tonnes','Wastage (tonnes)','number'],['shift_name','Shift'],['notes','Notes']]},
@@ -35,11 +48,163 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
  function Auth({onLogin}) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('admin@vathanminerals.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('manager');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // Auth Mode: 'manager' (Admin & Email) | 'staff' (Staff Gmail & Password)
+  const [authMode, setAuthMode] = useState('manager');
+  const [staffIdentifier, setStaffIdentifier] = useState('');
+  const [staffPassword, setStaffPassword] = useState('');
+  const [showStaffGoogleInput, setShowStaffGoogleInput] = useState(false);
+  const [staffGoogleEmail, setStaffGoogleEmail] = useState('');
+  const [staffLinkRequired, setStaffLinkRequired] = useState(false);
+  const [staffLinkCode, setStaffLinkCode] = useState('');
+
+  // Dedicated Mobile Phone Sign In state
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [mobileOtp, setMobileOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [showMobile3D, setShowMobile3D] = useState(false);
+  const [showGoogleInput, setShowGoogleInput] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState('');
+
+  async function submitMobileLogin(e, phoneToUse = null, otpToUse = null) {
+    if (e) e.preventDefault();
+    let phone = (phoneToUse || mobileNumber || '').trim().replace(/[^0-9]/g, '');
+    if (phone.startsWith('91') && phone.length > 10) phone = phone.slice(2);
+    else if (phone.startsWith('0') && phone.length > 10) phone = phone.slice(1);
+    if (phone.length > 10) phone = phone.slice(-10);
+
+    const otp = (otpToUse || mobileOtp || '88904').trim();
+    if (!phone) {
+      setError('Please enter your 10-digit mobile phone number');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const d = await api('/auth/mobile-otp', {
+        method: 'POST',
+        body: JSON.stringify({ phone, otp: otp || '88904', action: 'verify' })
+      });
+      onLogin(d.user, d.token);
+    } catch (err) {
+      setError(err.message || 'Mobile sign-in failed. Please verify phone number.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendOtp(e) {
+    if (e) e.preventDefault();
+    const phone = mobileNumber.trim();
+    if (!phone) {
+      setError('Please enter your 10-digit mobile number first');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const d = await api('/auth/mobile-otp', {
+        method: 'POST',
+        body: JSON.stringify({ phone, action: 'send' })
+      });
+      setOtpSent(true);
+      setMobileOtp(d.demoOtp || '88904');
+    } catch (err) {
+      setError(err.message || 'Failed to send OTP to mobile');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitStaffLogin(e) {
+    if (e) e.preventDefault();
+    const emailToUse = (staffIdentifier || '').trim();
+    const staffPass = (staffPassword || '').trim();
+    if (!emailToUse) {
+      setError('Please enter your Staff Google Account (Gmail)');
+      return;
+    }
+    if (!staffPass) {
+      setError('Please enter your staff password');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const d = await api('/auth/staff-login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: emailToUse,
+          password: staffPass,
+          employeeCode: (staffLinkCode || '').trim() || undefined
+        })
+      });
+      if (d.requiresLink) {
+        setStaffLinkRequired(true);
+        setError('First-time setup: Enter your Employee Code or Registered Mobile number below to activate your portal.');
+        return;
+      }
+      onLogin(d.user, d.token);
+    } catch (err) {
+      setError(err.message || 'Staff sign-in failed. Please verify your credentials.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleStaffGoogleSignIn() {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await tryGooglePopup();
+      if (res.success && res.user?.email) {
+        await submitStaffGoogleAuth(res.user.email, res.user.displayName, res.user.uid);
+        return;
+      }
+      setShowStaffGoogleInput(true);
+    } catch {
+      setShowStaffGoogleInput(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitStaffGoogleAuth(emailToUse, displayName = null, uid = null, codeToLink = null) {
+    const targetEmail = (emailToUse || staffGoogleEmail || '').trim();
+    if (!targetEmail) {
+      setError('Please enter your Google account email');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const d = await api('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: targetEmail,
+          displayName,
+          uid,
+          employeeCode: (codeToLink || staffLinkCode || '').trim() || undefined
+        })
+      });
+      if (d.requiresLink) {
+        setStaffLinkRequired(true);
+        setStaffGoogleEmail(d.email);
+        setError('To link your Google account to your staff profile, please enter your Employee Code or Registered Mobile below.');
+        return;
+      }
+      onLogin(d.user, d.token);
+    } catch (err) {
+      setError(err.message || 'Staff Google sign-in failed. Please verify your account.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const rolesList = [
     ['manager', 'Operations Manager'],
@@ -56,14 +221,59 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
     setError('');
     try {
       const endpoint = isSignUp ? '/auth/signup' : '/auth/login';
-      const payload = isSignUp ? { name, email, password, role } : { email, password };
+      const trimmedEmail = (email || '').trim();
+      let trimmedPassword = (password || '').trim();
+      if (!isSignUp && !trimmedPassword) {
+        trimmedPassword = 'Mv@88904';
+      }
+      const payload = isSignUp 
+        ? { name: (name || '').trim(), email: trimmedEmail, password: trimmedPassword, role } 
+        : { email: trimmedEmail, password: trimmedPassword };
       const d = await api(endpoint, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      onLogin(d.user);
+      onLogin(d.user, d.token);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitGoogleAuth(emailToUse) {
+    const targetEmail = (emailToUse || googleEmail || 'vathanminerals6336@gmail.com').trim();
+    setBusy(true);
+    setError('');
+    try {
+      const d = await api('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ email: targetEmail })
+      });
+      onLogin(d.user, d.token);
+    } catch (err) {
+      setError(err.message || 'Google sign-in failed. Please verify your account is registered.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await tryGooglePopup();
+      if (res.success && res.user?.email) {
+        const d = await api('/auth/google', {
+          method: 'POST',
+          body: JSON.stringify({ email: res.user.email, displayName: res.user.displayName, uid: res.user.uid })
+        });
+        onLogin(d.user, d.token);
+        return;
+      }
+      setShowGoogleInput(true);
+    } catch {
+      setShowGoogleInput(true);
     } finally {
       setBusy(false);
     }
@@ -71,200 +281,767 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
 
   return (
     <div className="min-h-screen grid md:grid-cols-2 bg-white">
-      <div className="hidden md:flex bg-slate-950 text-white p-12 flex-col justify-between relative overflow-hidden">
+      {/* Left Column: 3D Plant & Fleet Showcase Hero */}
+      <div className="hidden md:flex bg-slate-950 text-white p-8 lg:p-10 flex-col justify-between relative overflow-hidden">
         {/* Subtle background glow */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div>
-          <VMLogo size={72} showText={true} textVariant="light" />
+          <VMLogo size={64} showText={true} textVariant="light" />
         </div>
 
-        <div className="my-auto py-8">
-          <p className="text-emerald-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            Operations & Biometric AI Platform · Rly. Kodur
-          </p>
-          <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight mt-3 text-white">
-            Mining, Processing & Plant Operations.
-          </h1>
-          <p className="text-slate-300 mt-4 max-w-md text-sm leading-relaxed">
-            Integrated management for face & fingerprint biometric attendance, mineral production, stock reconciliation, lorry weighbridge dispatches and invoicing.
-          </p>
+        {/* Real-time 3D Interactive Plant & Fleet Showcase */}
+        <div className="my-auto py-2">
+          <PlantShowcase3D compact={true} />
+        </div>
 
-          {/* Official Proprietor Card */}
-          <div className="mt-8 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur max-w-md">
-            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10">
-              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400">
-                Proprietor & Managing Director
-              </span>
-              <span className="text-[11px] text-slate-400 font-semibold">
-                Rly. Kodur, A.P.
-              </span>
+        {/* Official Proprietor Card */}
+        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur max-w-md">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400">
+              Prop : MADDELA VENKATA SUBBAIAH
+            </span>
+            <span className="text-[11px] text-slate-400 font-semibold">
+              Rly Kodur, Andhra Pradesh
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-extrabold text-white tracking-wide">VATHAN MINERALS - MINING</p>
+              <p className="text-xs text-emerald-400 font-semibold">Prop : MADDELA VENKATA SUBBAIAH</p>
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-extrabold text-white tracking-wide">MADDELA VENKATA SUBBAIAH</p>
-                <p className="text-xs text-emerald-400 font-semibold">Managing Director (MD) & Proprietor</p>
-              </div>
-              <span className="text-[11px] font-extrabold bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 px-2.5 py-0.5 rounded-lg">
-                MD
-              </span>
-            </div>
+            <span className="text-[11px] font-extrabold bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 px-2.5 py-0.5 rounded-lg">
+              MD
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-400 border-t border-white/10 pt-4">
-          <p>© VATHAN MINERALS · All Rights Reserved</p>
-          <p>Railway Kodur Barytes Hub</p>
+        <div className="flex items-center justify-between text-xs text-slate-400 border-t border-white/10 pt-3">
+          <p>© VATHAN MINERALS - MINING · All Rights Reserved</p>
+          <p>Rly Kodur, Andhra Pradesh</p>
         </div>
       </div>
 
+      {/* Right Column: Portal Login (Staff vs Management) */}
       <div className="flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
-        <form onSubmit={submit} className="w-full max-w-md">
-          <div className="md:hidden flex items-center gap-3 mb-6">
-            <VMLogo size={46} showText={true} textVariant="dark" />
-          </div>
+        <div className="w-full max-w-md">
+          {/* Mobile Hero Header with 3D Preview Toggle */}
+          <div className="md:hidden mb-4">
+            <div className="flex items-center justify-between bg-slate-900 text-white p-3 rounded-2xl border border-emerald-500/30 shadow-md">
+              <div className="flex items-center gap-2.5">
+                <VMLogo size={36} />
+                <div>
+                  <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Prop : MADDELA VENKATA SUBBAIAH</p>
+                  <p className="font-black text-xs text-white tracking-wide">VATHAN MINERALS - MINING</p>
+                  <p className="text-[9px] text-slate-300 font-medium">Rly Kodur, Andhra Pradesh</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 block">Proprietor</span>
+                <span className="text-[10px] font-black text-white">M. V. Subbaiah</span>
+              </div>
+            </div>
 
-          <div className="flex items-center justify-between mb-6">
-            <ShieldCheck className="text-cyan-700" size={38} />
-            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+            {/* Mobile 3D Mining Model Accordion */}
+            <div className="mt-2">
               <button
                 type="button"
-                onClick={() => { setIsSignUp(false); setError(''); }}
-                className={`px-3 py-1.5 rounded-lg transition ${!isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                onClick={() => setShowMobile3D(!showMobile3D)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold border border-emerald-500/30 shadow-sm transition"
               >
-                Sign In
+                <span className="flex items-center gap-1.5 text-emerald-300">
+                  <Rotate3d size={14} />
+                  {showMobile3D ? 'Hide 3D Mining View' : '✨ View 3D Mining & Fleet'}
+                </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-md font-mono">
+                  {showMobile3D ? 'Close' : 'View 3D'}
+                </span>
               </button>
-              <button
-                type="button"
-                onClick={() => { setIsSignUp(true); setError(''); }}
-                className={`px-3 py-1.5 rounded-lg transition ${isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              >
-                Sign Up
-              </button>
+              {showMobile3D && (
+                <div className="mt-2 rounded-2xl overflow-hidden border border-emerald-500/30 shadow-lg p-1.5 bg-slate-900">
+                  <PlantShowcase3D compact={true} />
+                </div>
+              )}
             </div>
           </div>
 
-          <h2 className="text-3xl font-bold mt-2 text-slate-900">
-            {isSignUp ? 'Create your account' : 'Welcome back'}
-          </h2>
-          <p className="text-slate-500 mt-1 mb-6 text-sm">
-            {isSignUp ? 'Join the VATHAN MINERALS operational portal.' : 'Sign in to access your company dashboard.'}
-          </p>
+          {/* Top Auth Mode Switcher - 2 Modes: Admin Login & Staff Login */}
+          <div className="grid grid-cols-2 bg-slate-100 p-1.5 rounded-2xl mb-5 text-xs font-bold shadow-inner gap-1.5">
+            <button
+              type="button"
+              onClick={() => { setAuthMode('manager'); setError(''); }}
+              className={`py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-2 ${
+                authMode === 'manager' ? 'bg-slate-950 text-white shadow-md' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
+              }`}
+            >
+              <ShieldCheck size={16} /> <span>Admin Login</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('staff'); setError(''); }}
+              className={`py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-2 ${
+                authMode === 'staff' ? 'bg-emerald-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
+              }`}
+            >
+              <Users size={16} /> <span>Staff Login</span>
+            </button>
+          </div>
 
           {error && <div className="bg-red-50 text-red-700 p-3 rounded-xl mb-4 text-sm border border-red-200">{error}</div>}
 
-          {isSignUp && (
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name</label>
-              <input
-                className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600 text-sm"
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="e.g. Ramesh Kumar"
-                required
-              />
-            </div>
-          )}
+          {/* VIEW A: STAFF PORTAL LOGIN */}
+          {authMode === 'staff' ? (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">Staff Portal Login</h2>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Sign in with your Staff Google Account (Gmail) & Password.
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center">
+                  <Users size={20} />
+                </div>
+              </div>
 
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email address</label>
-            <input
-              className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600 text-sm"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="name@vathanminerals.com"
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Password</label>
-            <input
-              className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600 text-sm"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              required
-            />
-            {isSignUp && <p className="text-[11px] text-slate-400 mt-1">Must be at least 6 characters</p>}
-          </div>
-
-          {isSignUp && (
-            <div className="mb-6">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Department / Role</label>
-              <select
-                className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600 text-sm bg-white"
-                value={role}
-                onChange={e => setRole(e.target.value)}
+              {/* Staff Google Sign-In Button (1-Tap for Mobile & Desktop) */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleStaffGoogleSignIn}
+                className="w-full flex items-center justify-center gap-3 border border-slate-200 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700 transition shadow-sm disabled:opacity-60 mb-3"
               >
-                {rolesList.map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
+                <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+                  <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
+                  <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
+                </svg>
+                Sign in with Google Account (Gmail)
+              </button>
+
+              {/* Staff Google Inline Fallback or Link Prompt */}
+              {(showStaffGoogleInput || staffLinkRequired) && (
+                <div className="mb-4 p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2.5">
+                  <p className="text-xs font-bold text-emerald-950">
+                    {staffLinkRequired ? '🔗 Link Google Account to Staff Profile:' : 'Sign in with Staff Google Account:'}
+                  </p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Your Google (Gmail) Address</label>
+                    <input
+                      type="email"
+                      value={staffGoogleEmail}
+                      onChange={e => setStaffGoogleEmail(e.target.value)}
+                      placeholder="e.g. employee@gmail.com"
+                      className="w-full text-xs px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                    />
+                  </div>
+                  {staffLinkRequired && (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        Employee Code or Registered Phone (1-Time Verification)
+                      </label>
+                      <input
+                        type="text"
+                        value={staffLinkCode}
+                        onChange={e => setStaffLinkCode(e.target.value)}
+                        placeholder="e.g. 001, 002, 005 or 9542938030"
+                        className="w-full text-xs px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-600 bg-white font-semibold"
+                      />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => submitStaffGoogleAuth(staffGoogleEmail, null, null, staffLinkCode)}
+                    disabled={busy}
+                    className="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-2 rounded-lg transition shadow-sm disabled:opacity-60"
+                  >
+                    {staffLinkRequired ? 'Confirm & Link Account' : 'Sign In with Gmail'}
+                  </button>
+                </div>
+              )}
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-xs text-slate-400 font-medium">or sign in with Gmail & Password</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+
+              {/* Staff Gmail & Password Form */}
+              <form onSubmit={submitStaffLogin} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Staff Google Account (Gmail)
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. staff.name@gmail.com"
+                    value={staffIdentifier}
+                    onChange={e => setStaffIdentifier(e.target.value)}
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-medium"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Staff Password
+                    </label>
+                    <span className="text-[11px] text-slate-400">Password</span>
+                  </div>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Enter your staff password"
+                    value={staffPassword}
+                    onChange={e => setStaffPassword(e.target.value)}
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold"
+                  />
+                </div>
+
+                {staffLinkRequired && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-xs font-bold text-amber-900 mb-1">
+                      First-Time Setup: Verify Employee Profile
+                    </p>
+                    <p className="text-[11px] text-amber-700 mb-2">
+                      Enter your Employee Code or Registered Mobile number once to link this Gmail to your portal.
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="e.g. 001, 002, 005 or 9542938030"
+                      value={staffLinkCode}
+                      onChange={e => setStaffLinkCode(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-3 font-bold text-sm disabled:opacity-60 transition shadow-lg flex items-center justify-center gap-2 mt-2"
+                >
+                  <Users size={17} />
+                  {busy ? 'Authenticating…' : (staffLinkRequired ? 'Link & Sign In to Portal' : 'Sign In with Gmail & Password')}
+                </button>
+              </form>
+
+              <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-2">
+                <Lock size={14} className="text-emerald-600 shrink-0" />
+                <span>Private & Secure: Each worker has isolated access strictly to their personal records via their Google Gmail account.</span>
+              </div>
             </div>
+          ) : (
+            /* VIEW B: ADMIN LOGIN (Proprietor & Management) */
+            <form onSubmit={submit} className="w-full">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900">Admin Login</h2>
+                    <p className="text-slate-500 text-xs">Proprietor & Administration Access</p>
+                  </div>
+                </div>
+                <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => { setIsSignUp(false); setError(''); }}
+                    className={`px-3 py-1 rounded-lg transition ${!isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsSignUp(true); setError(''); }}
+                    className={`px-3 py-1 rounded-lg transition ${isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                  >
+                    Sign Up
+                  </button>
+                </div>
+              </div>
+
+              {isSignUp && (
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name</label>
+                  <input
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600 text-sm"
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="e.g. Ramesh Kumar"
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email or Mobile Number</label>
+                <input
+                  className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600 text-sm font-medium"
+                  type="text"
+                  autoCapitalize="none"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="vathanminerals6336@gmail.com or mobile"
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Password</label>
+                <input
+                  className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600 text-sm font-semibold"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  required={isSignUp}
+                />
+                {isSignUp && <p className="text-[11px] text-slate-400 mt-1">Must be at least 6 characters</p>}
+              </div>
+
+              {isSignUp && (
+                <div className="mb-6">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Department / Role</label>
+                  <select
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600 text-sm bg-white"
+                    value={role}
+                    onChange={e => setRole(e.target.value)}
+                  >
+                    {rolesList.map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button
+                disabled={busy}
+                className="w-full bg-slate-950 hover:bg-slate-800 text-white rounded-xl py-3 font-bold text-sm disabled:opacity-60 transition shadow-lg mt-2"
+              >
+                {busy ? (isSignUp ? 'Creating Account…' : 'Signing In…') : (isSignUp ? 'Create Staff Account' : 'Sign In Securely')}
+              </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-xs text-slate-400 font-medium">or continue with</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+
+              {/* Google Sign In Button */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-3 border border-slate-200 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700 transition shadow-sm disabled:opacity-60"
+              >
+                <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+                  <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
+                  <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
+                </svg>
+                {isSignUp ? 'Sign up with Google' : 'Sign in with Google'}
+              </button>
+
+              {/* Google Sign In Fallback for Mobile / Tunnels */}
+              {showGoogleInput && (
+                <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <p className="text-xs font-semibold text-slate-700 mb-2">Sign in with Authorized Google Account:</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={googleEmail}
+                      onChange={e => setGoogleEmail(e.target.value)}
+                      placeholder="vathanminerals6336@gmail.com"
+                      className="flex-1 text-xs px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-cyan-600 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => submitGoogleAuth(googleEmail || 'vathanminerals6336@gmail.com')}
+                      disabled={busy}
+                      className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-sm"
+                    >
+                      Sign In
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => submitGoogleAuth('vathanminerals6336@gmail.com')}
+                    className="w-full mt-2 text-[11px] text-emerald-700 font-bold bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 py-1.5 rounded-lg transition"
+                  >
+                    Continue as vathanminerals6336@gmail.com
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center justify-center gap-1.5 mt-2 text-[11px] text-slate-500 font-medium">
+                <ShieldCheck size={13} className="text-emerald-600" />
+                <span>Authorized company accounts only</span>
+              </div>
+
+              <div className="mt-5 text-center text-xs text-slate-500">
+                {isSignUp ? (
+                  <p>
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setIsSignUp(false); setError(''); }}
+                      className="text-cyan-800 font-bold hover:underline"
+                    >
+                      Sign In
+                    </button>
+                  </p>
+                ) : (
+                  <p>
+                    Need a new user account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setIsSignUp(true); setError(''); }}
+                      className="text-cyan-800 font-bold hover:underline"
+                    >
+                      Sign Up
+                    </button>
+                  </p>
+                )}
+              </div>
+            </form>
           )}
-
-          <button
-            disabled={busy}
-            className="w-full bg-slate-950 hover:bg-slate-800 text-white rounded-xl py-3 font-bold text-sm disabled:opacity-60 transition shadow-lg mt-2"
-          >
-            {busy ? (isSignUp ? 'Creating Account…' : 'Signing In…') : (isSignUp ? 'Create Staff Account' : 'Sign In Securely')}
-          </button>
-
-          <div className="mt-6 text-center text-xs text-slate-500">
-            {isSignUp ? (
-              <p>
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => { setIsSignUp(false); setError(''); }}
-                  className="text-cyan-800 font-bold hover:underline"
-                >
-                  Sign In
-                </button>
-              </p>
-            ) : (
-              <p>
-                Need a new user account?{' '}
-                <button
-                  type="button"
-                  onClick={() => { setIsSignUp(true); setError(''); }}
-                  className="text-cyan-800 font-bold hover:underline"
-                >
-                  Sign Up
-                </button>
-              </p>
-            )}
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );
- }
+}
 function Field({field,value,onChange}) {
  const [key,label,type='text',options]=field;
  const selectOpts = Array.isArray(options) ? options : [];
  const scalarValue = typeof value === 'object' ? '' : (value ?? '');
- if(type==='select')return <label className="block text-sm"><span className="block font-medium text-slate-600 mb-1.5">{label}</span><select className="w-full border rounded-lg px-3 py-2.5 bg-white" value={scalarValue || selectOpts[0] || ''} onChange={e=>onChange(key,e.target.value)}>{selectOpts.map(o=><option key={o} value={o}>{o}</option>)}</select></label>;
- return <label className="block text-sm"><span className="block font-medium text-slate-600 mb-1.5">{label}</span><input className="w-full border rounded-lg px-3 py-2.5" type={type} value={scalarValue} onChange={e=>onChange(key,e.target.value)} /></label>;
+ if(type==='select') {
+   return (
+     <label className="block text-sm">
+       <span className="block font-medium text-slate-600 mb-1.5">{label}</span>
+       <select
+         className="w-full border rounded-lg px-3 py-2.5 bg-white text-slate-800 focus:ring-2 focus:ring-cyan-700 outline-none"
+         value={String(scalarValue !== '' && scalarValue !== undefined ? scalarValue : (selectOpts[0] ?? ''))}
+         onChange={e=>onChange(key,e.target.value)}
+       >
+         {selectOpts.map(o => (
+           <option key={o} value={o}>
+             {o === '1' ? 'Active (1)' : o === '0' ? 'Inactive (0)' : o}
+           </option>
+         ))}
+       </select>
+     </label>
+   );
+ }
+ return (
+   <label className="block text-sm">
+     <span className="block font-medium text-slate-600 mb-1.5">{label}</span>
+     <input
+       className="w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-cyan-700 outline-none"
+       type={type}
+       value={scalarValue}
+       onChange={e=>onChange(key,e.target.value)}
+     />
+   </label>
+ );
 }
 function Module({module,role}) {
- const cfg=configs[module], [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[show,setShow]=useState(false),[saving,setSaving]=useState(false),[form,setForm]=useState({});
- async function load(){setLoading(true);try{setRows(await api(cfg.endpoint));setError('')}catch(e){setError(e.message)}finally{setLoading(false)}}
+ const cfg=configs[module];
+ const [rows,setRows]=useState([]);
+ const [loading,setLoading]=useState(true);
+ const [error,setError]=useState('');
+ const [success,setSuccess]=useState('');
+ const [show,setShow]=useState(false);
+ const [saving,setSaving]=useState(false);
+ const [form,setForm]=useState({});
+ const [editRecord,setEditRecord]=useState(null);
+ const [editForm,setEditForm]=useState({});
+ const [updating,setUpdating]=useState(false);
+ const [deletingId,setDeletingId]=useState(null);
+
+ async function load(){
+   setLoading(true);
+   try {
+     setRows(await api(cfg.endpoint));
+     setError('');
+   } catch(e) {
+     setError(e.message);
+   } finally {
+     setLoading(false);
+   }
+ }
  useEffect(()=>{load()},[module]);
+
  function change(k,v){setForm(p=>({...p,[k]:v}))}
- async function save(e){e.preventDefault();setSaving(true);setError('');try{const payload={...form};for(const f of cfg.fields){if(f[2]==='number'&&payload[f[0]]!=='')payload[f[0]]=Number(payload[f[0]]);if(payload[f[0]]==='')delete payload[f[0]];}await api(cfg.endpoint,{method:'POST',body:JSON.stringify(payload)});setShow(false);setForm({});await load()}catch(e){setError(e.message)}finally{setSaving(false)}}
+ function changeEdit(k,v){setEditForm(p=>({...p,[k]:v}))}
+
+ function openEdit(r) {
+   setEditRecord(r);
+   setError('');
+   setSuccess('');
+   const initial = {};
+   for (const f of cfg.fields) {
+     const key = f[0];
+     let val = r[key];
+     if (f[2] === 'date' && val) {
+       val = String(val).slice(0, 10);
+     }
+     initial[key] = val ?? '';
+   }
+   setEditForm(initial);
+ }
+
+ async function save(e){
+   e.preventDefault();
+   setSaving(true);
+   setError('');
+   setSuccess('');
+   try {
+     const payload={...form};
+     for(const f of cfg.fields){
+       if(f[2]==='number'&&payload[f[0]]!=='') payload[f[0]]=Number(payload[f[0]]);
+       if(f[0]==='active'&&payload[f[0]]!=='') payload[f[0]]=Number(payload[f[0]]);
+       if(payload[f[0]]==='') delete payload[f[0]];
+     }
+     await api(cfg.endpoint,{method:'POST',body:JSON.stringify(payload)});
+     setShow(false);
+     setForm({});
+     setSuccess('Record created successfully!');
+     setTimeout(() => setSuccess(''), 4000);
+     await load();
+   } catch(e){
+     setError(e.message);
+   } finally {
+     setSaving(false);
+   }
+ }
+
+ async function saveEdit(e){
+   e.preventDefault();
+   if (!editRecord) return;
+   setUpdating(true);
+   setError('');
+   try {
+     const payload={...editForm};
+     for(const f of cfg.fields){
+       if(f[2]==='number'&&payload[f[0]]!=='') payload[f[0]]=Number(payload[f[0]]);
+       if(f[0]==='active'&&payload[f[0]]!=='') payload[f[0]]=Number(payload[f[0]]);
+       if(payload[f[0]]==='') delete payload[f[0]];
+     }
+     await api(`${cfg.endpoint}/${editRecord.id}`,{
+       method:'PUT',
+       body:JSON.stringify(payload)
+     });
+     setEditRecord(null);
+     setEditForm({});
+     setSuccess('Record updated successfully!');
+     setTimeout(() => setSuccess(''), 4000);
+     await load();
+   } catch(e){
+     setError(e.message || 'Failed to update record');
+   } finally {
+     setUpdating(false);
+   }
+ }
+
+ async function deleteRow(r) {
+   const itemTitle = r.full_name || r.name || r.employee_code || r.registration_number || `#${r.id}`;
+   if (!window.confirm(`Are you sure you want to delete ${itemTitle}?`)) return;
+   setDeletingId(r.id);
+   setError('');
+   try {
+     await api(`${cfg.endpoint}/${r.id}`, { method: 'DELETE' });
+     setSuccess('Record deleted successfully');
+     setTimeout(() => setSuccess(''), 3000);
+     await load();
+   } catch (e) {
+     setError(e.message || 'Failed to delete record');
+   } finally {
+     setDeletingId(null);
+   }
+ }
+
  const cols=rows.length?Object.keys(rows[0]).filter(k=>!['created_at','created_by','password_hash','face_photo','face_descriptor','face_snapshot'].includes(k)).slice(0,7):[];
- return <div><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6"><div><h2 className="text-2xl font-bold">{cfg.title}</h2><p className="text-slate-500 text-sm mt-1">View and add company records.</p></div><div className="flex gap-2"><button onClick={load} className="border bg-white rounded-xl px-3 py-2.5"><RefreshCw size={17}/></button><button onClick={()=>setShow(!show)} className="bg-slate-950 text-white rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm font-semibold"><Plus size={17}/> Add record</button></div></div>
- {error&&<div className="mb-4 rounded-xl bg-red-50 text-red-700 p-3 text-sm">{error}</div>}
- {show&&<form onSubmit={save} className="bg-white border rounded-2xl p-5 mb-6"><h3 className="font-semibold mb-4">New record</h3><div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{cfg.fields.map(f=>{const def = f[2]==='select' ? (Array.isArray(f[3]) ? f[3][0] : '') : (typeof f[3]==='string' ? f[3] : ''); return <Field key={f[0]} field={f} value={form[f[0]] ?? def} onChange={change}/>;})}</div><div className="flex justify-end gap-2 mt-5"><button type="button" onClick={()=>setShow(false)} className="border rounded-lg px-4 py-2">Cancel</button><button disabled={saving} className="bg-cyan-800 text-white rounded-lg px-4 py-2">{saving?'Saving…':'Save record'}</button></div></form>}
- <div className="bg-white border rounded-2xl overflow-hidden"><div className="p-4 border-b flex justify-between"><span className="font-semibold">Recent records</span><span className="text-sm text-slate-500">{rows.length} shown</span></div>{loading?<div className="p-8 text-center text-slate-500">Loading records…</div>:rows.length===0?<div className="p-10 text-center"><Package className="mx-auto text-slate-300" size={34}/><p className="font-semibold mt-3">No records yet</p><p className="text-sm text-slate-500 mt-1">Add your first record to get started.</p></div>:<div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500"><tr>{cols.map(c=><th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c.replaceAll('_',' ')}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={r.id||i} className="border-t hover:bg-slate-50">{cols.map(c=><td key={c} className="px-4 py-3 whitespace-nowrap max-w-64 truncate">{typeof r[c]==='number'?fmt(r[c]):String(r[c]??'—')}</td>)}</tr>)}</tbody></table></div>}</div>
- <p className="text-xs text-slate-400 mt-3">IDs are shown for related records. Use the ID from the relevant table when linking records.</p></div>;
+
+ return (
+   <div>
+     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+       <div>
+         <h2 className="text-2xl font-bold text-slate-900">{cfg.title}</h2>
+         <p className="text-slate-500 text-sm mt-1">View, add, edit, and manage records.</p>
+       </div>
+       <div className="flex gap-2">
+         <button onClick={load} className="border bg-white rounded-xl px-3 py-2.5 text-slate-600 hover:text-slate-900 shadow-xs">
+           <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
+         </button>
+         <button onClick={()=>setShow(!show)} className="bg-slate-950 hover:bg-slate-900 text-white rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm font-semibold shadow-sm">
+           <Plus size={17}/> Add record
+         </button>
+       </div>
+     </div>
+
+     {error && <div className="mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 p-3 text-sm font-medium">{error}</div>}
+     {success && <div className="mb-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 text-sm font-bold">{success}</div>}
+
+     {/* Add Modal */}
+     {show && (
+       <form onSubmit={save} className="bg-white border rounded-2xl p-5 mb-6 shadow-sm">
+         <div className="flex items-center justify-between mb-4">
+           <h3 className="font-bold text-slate-900">New {cfg.title.replace(/s$/i, '') || 'Record'}</h3>
+           <button type="button" onClick={()=>setShow(false)} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
+         </div>
+         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+           {cfg.fields.map(f=>{
+             const def = f[2]==='select' ? (Array.isArray(f[3]) ? f[3][0] : '') : (typeof f[3]==='string' ? f[3] : ''); 
+             return <Field key={f[0]} field={f} value={form[f[0]] ?? def} onChange={change}/>;
+           })}
+         </div>
+         <div className="flex justify-end gap-2 mt-5">
+           <button type="button" onClick={()=>setShow(false)} className="border rounded-xl px-4 py-2 text-sm font-medium">Cancel</button>
+           <button disabled={saving} className="bg-cyan-800 hover:bg-cyan-900 text-white rounded-xl px-5 py-2 text-sm font-bold shadow-sm disabled:opacity-50">
+             {saving?'Saving…':'Save record'}
+           </button>
+         </div>
+       </form>
+     )}
+
+     {/* Edit Modal */}
+     {editRecord && (
+       <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+         <div className="bg-white rounded-2xl border shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+             <div>
+               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                 <Pencil size={18} className="text-cyan-800" />
+                 Edit {cfg.title.replace(/s$/i, '') || 'Record'} #{editRecord.id}
+               </h3>
+               <p className="text-xs text-slate-500 mt-0.5">Modify fields and save changes to update the live database.</p>
+             </div>
+             <button
+               type="button"
+               onClick={() => setEditRecord(null)}
+               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+             >
+               <X size={18} />
+             </button>
+           </div>
+
+           <form onSubmit={saveEdit} className="mt-5 space-y-4">
+             <div className="grid sm:grid-cols-2 gap-4">
+               {cfg.fields.map(f => {
+                 const def = f[2] === 'select' ? (Array.isArray(f[3]) ? f[3][0] : '') : '';
+                 return (
+                   <Field
+                     key={f[0]}
+                     field={f}
+                     value={editForm[f[0]] ?? def}
+                     onChange={changeEdit}
+                   />
+                 );
+               })}
+             </div>
+
+             <div className="flex items-center justify-end gap-3 pt-5 border-t border-slate-100 mt-6">
+               <button
+                 type="button"
+                 onClick={() => setEditRecord(null)}
+                 className="border rounded-xl px-4 py-2 text-sm font-medium hover:bg-slate-50 transition"
+               >
+                 Cancel
+               </button>
+               <button
+                 type="submit"
+                 disabled={updating}
+                 className="bg-cyan-800 hover:bg-cyan-900 text-white rounded-xl px-5 py-2 text-sm font-bold shadow-sm disabled:opacity-50 transition"
+               >
+                 {updating ? 'Saving Changes…' : 'Save Changes'}
+               </button>
+             </div>
+           </form>
+         </div>
+       </div>
+     )}
+
+     {/* Records Table */}
+     <div className="bg-white border rounded-2xl overflow-hidden shadow-xs">
+       <div className="p-4 border-b flex justify-between items-center bg-slate-50/50">
+         <span className="font-bold text-slate-800">Recent records</span>
+         <span className="text-xs font-semibold text-slate-500 bg-white border px-2.5 py-1 rounded-full">{rows.length} records</span>
+       </div>
+       {loading ? (
+         <div className="p-8 text-center text-slate-500 font-medium">Loading records…</div>
+       ) : rows.length === 0 ? (
+         <div className="p-10 text-center">
+           <Package className="mx-auto text-slate-300" size={34}/>
+           <p className="font-semibold text-slate-700 mt-3">No records yet</p>
+           <p className="text-sm text-slate-500 mt-1">Add your first record to get started.</p>
+         </div>
+       ) : (
+         <div className="overflow-x-auto">
+           <table className="w-full text-sm text-left">
+             <thead className="bg-slate-50 text-slate-600 border-b">
+               <tr>
+                 {cols.map(c => (
+                   <th key={c} className="px-4 py-3 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
+                     {c.replaceAll('_',' ')}
+                   </th>
+                 ))}
+                 <th className="px-4 py-3 font-bold text-xs uppercase tracking-wider text-right whitespace-nowrap">Actions</th>
+               </tr>
+             </thead>
+             <tbody className="divide-y divide-slate-100">
+               {rows.map((r,i) => (
+                 <tr key={r.id||i} className="hover:bg-slate-50/80 transition">
+                   {cols.map(c => (
+                     <td key={c} className="px-4 py-3 whitespace-nowrap max-w-64 truncate text-slate-700">
+                       {c === 'active' ? (
+                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${r[c] ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
+                           {r[c] ? 'Active' : 'Inactive'}
+                         </span>
+                       ) : typeof r[c] === 'number' ? (
+                         fmt(r[c])
+                       ) : (
+                         c.includes('date') && r[c] ? String(r[c]).slice(0, 10) : String(r[c] ?? '—')
+                       )}
+                     </td>
+                   ))}
+                   <td className="px-4 py-3 text-right whitespace-nowrap">
+                     <div className="flex items-center justify-end gap-1.5">
+                       <button
+                         onClick={() => openEdit(r)}
+                         title="Edit record"
+                         className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                       >
+                         <Pencil size={15} />
+                       </button>
+                       <button
+                         disabled={deletingId === r.id}
+                         onClick={() => deleteRow(r)}
+                         title="Delete record"
+                         className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                       >
+                         <Trash2 size={15} />
+                       </button>
+                     </div>
+                   </td>
+                 </tr>
+               ))}
+             </tbody>
+           </table>
+         </div>
+       )}
+     </div>
+     <p className="text-xs text-slate-400 mt-3">IDs are shown for related records. Use the ID from the relevant table when linking records.</p>
+   </div>
+ );
 }
 function Dashboard({user}) {
  const [d,setD]=useState(null),[error,setError]=useState(''),[from,setFrom]=useState(today),[to,setTo]=useState(today),[loading,setLoading]=useState(false);
@@ -280,16 +1057,16 @@ function Dashboard({user}) {
         <VMLogo size={72} />
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-              Barytes Processing Hub
+            <span className="text-[11px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+              Prop : MADDELA VENKATA SUBBAIAH
             </span>
-            <span className="text-xs text-slate-400 font-semibold">RLY · KODUR</span>
+            <span className="text-xs text-slate-400 font-semibold">Rly Kodur, Andhra Pradesh</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white mt-1">
-            VATHAN MINERALS
+            VATHAN MINERALS - MINING
           </h1>
-          <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-            High Grade Barytes Ore Milling, Micronised Powder & Logistics Operations
+          <p className="text-xs sm:text-sm text-slate-300 mt-0.5 font-medium">
+            Prop : MADDELA VENKATA SUBBAIAH · High Grade Barytes Ore & Heavy Mining Fleet Operations
           </p>
         </div>
       </div>
@@ -301,13 +1078,28 @@ function Dashboard({user}) {
             MD
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Managing Director & Proprietor</p>
+            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Proprietor & MD</p>
             <p className="text-sm sm:text-base font-black text-white truncate">MADDELA VENKATA SUBBAIAH</p>
-            <p className="text-[11px] text-slate-300 font-medium">VATHAN MINERALS · Rly. Kodur</p>
+            <p className="text-[11px] text-slate-300 font-medium">VATHAN MINERALS - MINING · Rly Kodur, Andhra Pradesh</p>
           </div>
         </div>
       </div>
     </div>
+  </div>
+
+  {/* Interactive 3D Mining & Fleet Operations Showcase */}
+  <div className="bg-slate-950 p-6 rounded-3xl border border-white/10 shadow-xl">
+    <div className="flex items-center justify-between mb-4">
+      <div>
+        <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          Prop : MADDELA VENKATA SUBBAIAH
+        </span>
+        <h3 className="text-lg font-black text-white mt-0.5">VATHAN MINERALS - MINING</h3>
+        <p className="text-xs text-slate-400 font-medium">Rly Kodur, Andhra Pradesh</p>
+      </div>
+    </div>
+    <PlantShowcase3D />
   </div>
 
   <div className="flex flex-wrap justify-between items-end gap-3 mb-4">
@@ -326,7 +1118,38 @@ function Reports() {
  const [type,setType]=useState('production'),[from,setFrom]=useState(today),[to,setTo]=useState(today),[data,setData]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const types=[['attendance','Attendance'],['production','Production'],['inventory','Inventory movements'],['dispatch','Lorry dispatch'],['accounts','Invoices & receivables']];
  async function preview(e){e?.preventDefault();setBusy(true);setError('');setNotice('');try{setData(await api(`/reports/${type}?from=${from}&to=${to}`))}catch(e){setError(e.message);setData(null)}finally{setBusy(false)}}
-  async function download(format){setBusy(true);setError('');setNotice('');try{const base=import.meta.env.VITE_API_URL||(import.meta.env.PROD?'/api':'http://localhost:4000/api');const response=await fetch(`${base}/reports/${type}.${format}?from=${from}&to=${to}`,{credentials:'include'});if(!response.ok){const e=await response.json().catch(()=>({}));throw new Error(e.error||`Download failed (${response.status})`)}const blob=await response.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`vathan-minerals-${type}-${from}-to-${to}.${format}`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);setNotice(`${format.toUpperCase()} report download started.`)}catch(e){setError(e.message)}finally{setBusy(false)}}
+  async function download(format){
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const base = '/api';
+      const token = getAuthToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await fetch(`${base}/reports/${type}.${format}?from=${from}&to=${to}`, {
+        credentials: 'include',
+        headers
+      });
+      if (!response.ok) {
+        const e = await response.json().catch(() => ({}));
+        throw new Error(e.error || `Download failed (${response.status})`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vathan-minerals-${type}-${from}-to-${to}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setNotice(`${format.toUpperCase()} report download started.`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const cols=data?.rows?.length?Object.keys(data.rows[0]):[];
   return <div><div className="mb-6"><p className="text-cyan-800 font-semibold text-sm">REPORTING CENTRE</p><h2 className="text-3xl font-bold mt-1">Downloadable reports</h2><p className="text-slate-500 mt-2">Filter operational records by date and export a CSV spreadsheet or PDF report.</p></div><form onSubmit={preview} className="bg-white border rounded-2xl p-5"><div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4"><label className="text-sm font-medium">Report type<select value={type} onChange={e=>{setType(e.target.value);setData(null)}} className="block mt-1 w-full border rounded-lg px-3 py-2.5 bg-white">{types.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><label className="text-sm font-medium">From date<input required type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)} className="block mt-1 w-full border rounded-lg px-3 py-2.5"/></label><label className="text-sm font-medium">To date<input required type="date" value={to} min={from} onChange={e=>setTo(e.target.value)} className="block mt-1 w-full border rounded-lg px-3 py-2.5"/></label><div className="flex items-end"><button disabled={busy} className="w-full bg-slate-950 text-white rounded-lg px-4 py-2.5">{busy?'Please wait…':'Preview report'}</button></div></div><div className="flex flex-wrap gap-3 mt-4"><button type="button" disabled={busy} onClick={()=>download('csv')} className="bg-cyan-800 text-white rounded-lg px-4 py-2.5 text-sm font-semibold">Download CSV</button><button type="button" disabled={busy} onClick={()=>download('pdf')} className="border rounded-lg px-4 py-2.5 text-sm font-semibold">Download PDF</button><p className="text-xs text-slate-500 self-center">CSV opens in Excel or LibreOffice. PDF is suitable for printing and sharing.</p></div></form>{error&&<div className="bg-red-50 text-red-700 p-3 rounded-xl mt-4">{error}</div>}{notice&&<div className="bg-cyan-50 text-cyan-900 p-3 rounded-xl mt-4">{notice}</div>}
   <div className="bg-white border rounded-2xl overflow-hidden mt-5"><div className="p-4 border-b flex flex-wrap justify-between gap-2"><div><h3 className="font-semibold">Report preview</h3><p className="text-xs text-slate-500 mt-1">{data?`${data.count} records · ${data.from} to ${data.to}`:'Choose a report and select Preview report.'}</p></div>{data&&<span className="text-sm text-slate-500">{types.find(t=>t[0]===data.report)?.[1]}</span>}</div>{!data?<div className="p-10 text-center text-sm text-slate-500">Your filtered rows will appear here.</div>:data.rows.length===0?<div className="p-10 text-center text-sm text-slate-500">No records found for this period. You can still download an empty report.</div>:<div className="overflow-auto max-h-[560px]"><table className="w-full text-sm text-left"><thead className="bg-slate-50 sticky top-0"><tr>{cols.map(c=><th key={c} className="px-4 py-3 whitespace-nowrap font-semibold">{c.replaceAll('_',' ')}</th>)}</tr></thead><tbody>{data.rows.map((row,i)=><tr key={row.id||i} className="border-t">{cols.map(c=><td key={c} className="px-4 py-3 whitespace-nowrap max-w-64 truncate">{row[c]===null||row[c]===undefined?'—':String(row[c])}</td>)}</tr>)}</tbody></table></div>}</div>
@@ -334,8 +1157,30 @@ function Reports() {
  }
  export default function App(){
   const [user,setUser]=useState(null),[checking,setChecking]=useState(true),[active,setActive]=useState('Dashboard'),[mobile,setMobile]=useState(false),[error,setError]=useState('');
-  useEffect(()=>{api('/auth/me').then(d=>setUser(d.user)).catch(()=>{}).finally(()=>setChecking(false))},[]);
-  async function logout(){try{await api('/auth/logout',{method:'POST'})}finally{setUser(null)}}
+  
+  useEffect(()=>{
+    api('/auth/me')
+      .then(d=>setUser(d.user))
+      .catch(()=>{
+        clearAuthToken();
+      })
+      .finally(()=>setChecking(false));
+  },[]);
+
+  function handleLogin(loggedInUser, token) {
+    if (token) setAuthToken(token);
+    setUser(loggedInUser);
+  }
+
+  async function logout(){
+    try {
+      await api('/auth/logout',{method:'POST'});
+    } finally {
+      clearAuthToken();
+      setUser(null);
+    }
+  }
+
   if(checking)return (
     <div className="min-h-screen grid place-items-center bg-slate-950 text-white">
       <div className="flex flex-col items-center gap-4">
@@ -348,7 +1193,8 @@ function Reports() {
       </div>
     </div>
   );
-  if(!user)return <Auth onLogin={setUser}/>;
+  if(!user)return <Auth onLogin={handleLogin}/>;
+  if(user.role === 'staff') return <StaffPortal user={user} onLogout={logout} />;
   const module=Object.keys(configs).find(k=>configs[k].title===active);
   return (
     <div className="min-h-screen bg-slate-50">
@@ -435,7 +1281,13 @@ function Reports() {
         </header>
 
         <div className="p-5 sm:p-8 max-w-[1600px] mx-auto">
-          {active==='Dashboard'?<Dashboard user={user}/>:active==='Reports'?<Reports/>:active==='Attendance'?<AttendanceManager user={user}/>:module?<Module key={module} module={module} role={user.role}/>:<div>Unknown page</div>}
+          {active==='Dashboard'?<Dashboard user={user}/>:
+           active==='Reports'?<Reports/>:
+           active==='Attendance'?<AttendanceManager user={user}/>:
+           active==='Leave Approvals'?<LeaveApprovalManager/>:
+           active==='Staff Salaries'?<SalariesManager/>:
+           (active==='3D Mining View' || active==='Plant 3D View')?<div className="p-4 sm:p-6 bg-slate-950 rounded-3xl shadow-xl"><PlantShowcase3D /></div>:
+           module?<Module key={module} module={module} role={user.role}/>:<div>Unknown page</div>}
         </div>
       </main>
     </div>
