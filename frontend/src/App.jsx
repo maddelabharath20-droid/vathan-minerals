@@ -189,6 +189,7 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
           email: targetEmail,
           displayName,
           uid,
+          role: 'staff',
           employeeCode: (codeToLink || staffLinkCode || '').trim() || undefined
         })
       });
@@ -198,7 +199,11 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
         setError('To link your Google account to your staff profile, please enter your Employee Code or Registered Mobile below.');
         return;
       }
-      onLogin(d.user, d.token);
+      if (d.user && d.token) {
+        onLogin(d.user, d.token);
+      } else {
+        setError(d.error || 'Staff Google sign-in failed.');
+      }
     } catch (err) {
       setError(err.message || 'Staff Google sign-in failed. Please verify your account.');
     } finally {
@@ -243,14 +248,22 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
 
   async function submitGoogleAuth(emailToUse) {
     const targetEmail = (emailToUse || googleEmail || 'vathanminerals6336@gmail.com').trim();
+    if (!targetEmail) {
+      setError('Please enter your Google account email');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       const d = await api('/auth/google', {
         method: 'POST',
-        body: JSON.stringify({ email: targetEmail })
+        body: JSON.stringify({ email: targetEmail, role: 'admin' })
       });
-      onLogin(d.user, d.token);
+      if (d.user && d.token) {
+        onLogin(d.user, d.token);
+      } else {
+        setError(d.error || 'Google sign-in failed. Please verify your account.');
+      }
     } catch (err) {
       setError(err.message || 'Google sign-in failed. Please verify your account is registered.');
     } finally {
@@ -266,12 +279,22 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
       if (res.success && res.user?.email) {
         const d = await api('/auth/google', {
           method: 'POST',
-          body: JSON.stringify({ email: res.user.email, displayName: res.user.displayName, uid: res.user.uid })
+          body: JSON.stringify({ 
+            email: res.user.email, 
+            displayName: res.user.displayName, 
+            uid: res.user.uid,
+            role: 'admin'
+          })
         });
-        onLogin(d.user, d.token);
-        return;
+        if (d.user && d.token) {
+          onLogin(d.user, d.token);
+          return;
+        }
       }
       setShowGoogleInput(true);
+      if (res.error?.code === 'auth/unauthorized-domain') {
+        setError('Google popup domain not yet added to Firebase. You can enter your Gmail address below to sign in directly.');
+      }
     } catch {
       setShowGoogleInput(true);
     } finally {

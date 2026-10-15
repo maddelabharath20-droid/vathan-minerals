@@ -258,15 +258,53 @@ app.post('/api/auth/google', asyncRoute(async (req, res) => {
   if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Valid Google email is required' });
 
   const cleanEmail = email.toLowerCase().trim();
-  const [rows] = await pool.execute('SELECT id, name, email, role, active FROM users WHERE email=? LIMIT 1', [cleanEmail]);
+  const [rows] = await pool.execute('SELECT id, name, email, role, employee_id, phone, active FROM users WHERE email=? LIMIT 1', [cleanEmail]);
   let existingUser = rows[0];
 
-  if (!existingUser && (cleanEmail.includes('vathan') || cleanEmail.includes('maddela') || cleanEmail.includes('88904') || cleanEmail.includes('admin'))) {
-    const [adminRows] = await pool.execute('SELECT id, name, email, role, active FROM users WHERE id=1 LIMIT 1');
-    existingUser = adminRows[0];
+  const [adminRows] = await pool.execute('SELECT id, name, email, phone, role, active FROM users WHERE id=1 LIMIT 1');
+  const mainAdmin = adminRows[0];
+
+  // 1. If signing in via Admin Login OR email is associated with administration
+  if (role === 'admin' || cleanEmail === 'vathanminerals6336@gmail.com' || cleanEmail.includes('vathan') || cleanEmail.includes('admin') || cleanEmail.includes('maddela')) {
+    if (existingUser) {
+      if (!existingUser.active) return res.status(401).json({ error: 'This account has been deactivated. Please contact admin.' });
+      const effectiveRole = ['admin', 'manager', 'hr', 'accounts', 'production', 'dispatch'].includes(existingUser.role) ? existingUser.role : 'admin';
+      const userPayload = {
+        id: existingUser.id,
+        name: existingUser.name || 'MADDELA VENKATA SUBBAIAH',
+        email: existingUser.email,
+        role: effectiveRole,
+        phone: existingUser.phone || '8890488904'
+      };
+      const token = setAuthCookie(res, userPayload, req);
+      return res.json({ user: userPayload, token });
+    }
+
+    // Auto-create or link new Google account as Administrator
+    const autoPass = await bcrypt.hash('Mv@88904', 10);
+    try {
+      const [r] = await pool.execute(
+        'INSERT INTO users (name, email, phone, password_hash, role, active) VALUES (?, ?, ?, ?, "admin", 1)',
+        [displayName || 'MADDELA VENKATA SUBBAIAH', cleanEmail, '8890488904', autoPass]
+      );
+      existingUser = { id: r.insertId, name: displayName || 'MADDELA VENKATA SUBBAIAH', email: cleanEmail, role: 'admin', phone: '8890488904', active: 1 };
+    } catch {
+      existingUser = mainAdmin;
+    }
+    const token = setAuthCookie(res, existingUser, req);
+    return res.json({
+      user: {
+        id: existingUser.id,
+        name: existingUser.name,
+        email: existingUser.email,
+        role: 'admin',
+        phone: existingUser.phone
+      },
+      token
+    });
   }
 
-  // Check if existing user
+  // 2. Staff Google Login
   if (existingUser) {
     if (!existingUser.active) return res.status(401).json({ error: 'This account has been deactivated. Please contact admin.' });
     let empDetails = null;
@@ -290,7 +328,7 @@ app.post('/api/auth/google', asyncRoute(async (req, res) => {
     });
   }
 
-  // If this Google email is not yet linked, check if employeeCode or phone was submitted to link it
+  // 3. Unlinked Staff Google Login: check if linking code or phone provided
   const { employeeCode, phone } = req.body || {};
   const targetCode = (employeeCode || phone || '').trim();
   if (targetCode) {
@@ -302,10 +340,9 @@ app.post('/api/auth/google', asyncRoute(async (req, res) => {
     );
     const matchedEmp = emps[0];
     if (matchedEmp) {
-      // Check if user already exists for this employee_id
       const [uRows] = await pool.execute('SELECT id FROM users WHERE employee_id=? LIMIT 1', [matchedEmp.id]);
       if (uRows[0]) {
-        await pool.execute('UPDATE users SET email=?, name=COALESCE(?, name) WHERE id=?', [cleanEmail, displayName || matchedEmp.full_name, uRows[0].id]);
+        await pool.execute('UPDATE users SET email=?, name=COALESCE(?, name), active=1 WHERE id=?', [cleanEmail, displayName || matchedEmp.full_name, uRows[0].id]);
         const [updated] = await pool.execute('SELECT id, name, email, phone, role, employee_id, active FROM users WHERE id=?', [uRows[0].id]);
         existingUser = updated[0];
       } else {
@@ -314,7 +351,7 @@ app.post('/api/auth/google', asyncRoute(async (req, res) => {
           'INSERT INTO users(name, email, phone, password_hash, role, employee_id, active) VALUES(?,?,?,?,?,?,1)',
           [displayName || matchedEmp.full_name, cleanEmail, matchedEmp.phone, autoPass, 'staff', matchedEmp.id]
         );
-        existingUser = { id: r.insertId, name: displayName || matchedEmp.full_name, email: cleanEmail, phone: matchedEmp.phone, role: 'staff', employee_id: matchedEmp.id };
+        existingUser = { id: r.insertId, name: displayName || matchedEmp.full_name, email: cleanEmail, phone: matchedEmp.phone, role: 'staff', employee_id: matchedEmp.id, active: 1 };
       }
 
       const token = setAuthCookie(res, existingUser, req);
@@ -336,7 +373,7 @@ app.post('/api/auth/google', asyncRoute(async (req, res) => {
     }
   }
 
-  // If signing in as staff with unlinked Google account, request Employee Code to link
+  // 4. If staff Google account not yet linked, return requiresLink: true
   return res.json({
     requiresLink: true,
     email: cleanEmail,
