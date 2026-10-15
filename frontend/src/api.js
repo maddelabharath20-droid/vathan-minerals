@@ -1,4 +1,9 @@
-const BASE = '/api';
+const PROD_API = 'https://strategies-cinema-sir-liquid.trycloudflare.com/api';
+const isRemoteHost = typeof window !== 'undefined' && (
+  window.location.hostname.includes('vercel.app') || 
+  (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.hostname.includes('trycloudflare.com'))
+);
+const BASE = isRemoteHost ? PROD_API : '/api';
 const TOKEN_KEY = 'barytes_session_token';
 
 export function getAuthToken() {
