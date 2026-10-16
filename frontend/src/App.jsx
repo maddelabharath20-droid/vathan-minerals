@@ -45,10 +45,24 @@ const configs = {
  trips:{title:'Lorry trips',endpoint:'/trips',fields:[['trip_date','Trip date','date',today],['vehicle_id','Vehicle ID','number'],['driver_id','Driver ID (optional)','number'],['order_id','Order ID (optional)','number'],['invoice_id','Invoice ID (optional)','number'],['destination','Destination'],['gross_weight_tonnes','Gross weight (tonnes)','number'],['tare_weight_tonnes','Tare weight (tonnes)','number'],['status','Status','select',['planned','loaded','dispatched','delivered','cancelled']],['weighbridge_slip','Weighbridge slip'],['notes','Notes']]},
 };
 const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
- function Auth({onLogin}) {
+const SAVED_EMAIL_KEY = 'vathan_remembered_login_email';
+
+function getRememberedEmail() {
+  try {
+    const v = localStorage.getItem(SAVED_EMAIL_KEY);
+    if (v && v.trim()) return v.trim();
+  } catch {}
+  return 'maddelabharath20@gmail.com';
+}
+
+function Auth({onLogin}) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  
+  // Keep existing email selected for Web and App
+  const [email, setEmail] = useState(() => getRememberedEmail());
+  const [rememberEmail, setRememberEmail] = useState(true);
+
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('manager');
   const [busy, setBusy] = useState(false);
@@ -58,9 +72,25 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
 
   // Google Sign-In state & handlers
   const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [selectedGoogleEmail, setSelectedGoogleEmail] = useState('');
+  const [selectedGoogleEmail, setSelectedGoogleEmail] = useState(() => getRememberedEmail());
   const [modalPassword, setModalPassword] = useState('Mv@88904');
   const [modalError, setModalError] = useState('');
+
+  function persistEmail(emailToSave) {
+    if (emailToSave && emailToSave.trim()) {
+      try {
+        localStorage.setItem(SAVED_EMAIL_KEY, emailToSave.trim());
+      } catch {}
+    }
+  }
+
+  function handleEmailChange(val) {
+    setEmail(val);
+    setSelectedGoogleEmail(val);
+    if (rememberEmail && val && val.trim()) {
+      persistEmail(val);
+    }
+  }
 
   async function handleGoogleSignIn() {
     setError('');
@@ -68,6 +98,7 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
     try {
       const res = await tryGooglePopup();
       if (res.success && res.user?.email) {
+        persistEmail(res.user.email);
         const d = await api('/auth/google', {
           method: 'POST',
           body: JSON.stringify({
@@ -81,11 +112,13 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
         return;
       }
       // If popup was blocked, closed, or domain not authorized in Firebase Console:
-      setSelectedGoogleEmail(email || 'maddelabharath20@gmail.com');
+      const activeEmail = email || getRememberedEmail();
+      setSelectedGoogleEmail(activeEmail);
       setModalPassword(password || 'Mv@88904');
       setShowGoogleModal(true);
     } catch (err) {
-      setSelectedGoogleEmail(email || 'maddelabharath20@gmail.com');
+      const activeEmail = email || getRememberedEmail();
+      setSelectedGoogleEmail(activeEmail);
       setModalPassword(password || 'Mv@88904');
       setShowGoogleModal(true);
     } finally {
@@ -96,6 +129,9 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
   async function quickGoogleLogin(accEmail, accPass = 'Mv@88904') {
     setBusy(true);
     setModalError('');
+    persistEmail(accEmail);
+    setEmail(accEmail);
+    setSelectedGoogleEmail(accEmail);
     try {
       const d = await api('/auth/login', {
         method: 'POST',
@@ -124,6 +160,8 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
     }
     setBusy(true);
     setModalError('');
+    persistEmail(targetEmail);
+    setEmail(targetEmail);
     try {
       const d = await api('/auth/login', {
         method: 'POST',
@@ -159,6 +197,10 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
     if (!trimmedPassword) {
       setError('Please enter your password to sign in');
       return;
+    }
+
+    if (rememberEmail) {
+      persistEmail(trimmedEmail);
     }
 
     setBusy(true);
@@ -315,16 +357,49 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
 
             {/* Email or Mobile Number */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Google Account (Gmail) or Mobile Number</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Google Account (Gmail) or Mobile Number</label>
+                {email && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Keep Existing Selected
+                  </span>
+                )}
+              </div>
               <input
                 className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-medium"
                 type="text"
                 autoCapitalize="none"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={e => handleEmailChange(e.target.value)}
                 placeholder="e.g. maddelabharath20@gmail.com or 8890488904"
                 required
               />
+              <div className="flex items-center justify-between mt-1.5 px-0.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-600 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={rememberEmail}
+                    onChange={e => {
+                      setRememberEmail(e.target.checked);
+                      if (e.target.checked && email.trim()) {
+                        persistEmail(email.trim());
+                      }
+                    }}
+                    className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 accent-emerald-600"
+                  />
+                  <span>Keep this email selected for Web & App</span>
+                </label>
+                {email && (
+                  <button
+                    type="button"
+                    onClick={() => handleEmailChange('')}
+                    className="text-[11px] text-slate-400 hover:text-slate-600 font-medium hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Password */}
@@ -459,7 +534,11 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
                 type="button"
                 onClick={() => quickGoogleLogin('maddelabharath20@gmail.com', 'Mv@88904')}
                 disabled={busy}
-                className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-emerald-50/70 border border-slate-200 transition text-left active:scale-[0.99]"
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition text-left active:scale-[0.99] ${
+                  (selectedGoogleEmail || '').toLowerCase() === 'maddelabharath20@gmail.com'
+                    ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/30 shadow-sm'
+                    : 'hover:bg-slate-50 border-slate-200'
+                }`}
               >
                 <div className="w-10 h-10 rounded-full bg-emerald-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
                   MB
@@ -467,7 +546,12 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-bold text-slate-900 truncate">MADDELA BHARATH</p>
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Admin</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Admin</span>
+                      {(selectedGoogleEmail || '').toLowerCase() === 'maddelabharath20@gmail.com' && (
+                        <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded shadow-xs">✓ Selected</span>
+                      )}
+                    </div>
                   </div>
                   <p className="text-[11px] text-slate-500 truncate">maddelabharath20@gmail.com</p>
                 </div>
@@ -478,7 +562,11 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
                 type="button"
                 onClick={() => quickGoogleLogin('vathanminerals6336@gmail.com', 'Mv@88904')}
                 disabled={busy}
-                className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 border border-slate-200 transition text-left active:scale-[0.99]"
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition text-left active:scale-[0.99] ${
+                  (selectedGoogleEmail || '').toLowerCase() === 'vathanminerals6336@gmail.com'
+                    ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/30 shadow-sm'
+                    : 'hover:bg-slate-50 border-slate-200'
+                }`}
               >
                 <div className="w-10 h-10 rounded-full bg-slate-900 text-emerald-400 font-bold text-sm flex items-center justify-center shrink-0">
                   MV
@@ -486,7 +574,12 @@ const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-bold text-slate-900 truncate">MADDELA VENKATA SUBBAIAH</p>
-                    <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded">Proprietor</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded">Proprietor</span>
+                      {(selectedGoogleEmail || '').toLowerCase() === 'vathanminerals6336@gmail.com' && (
+                        <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded shadow-xs">✓ Selected</span>
+                      )}
+                    </div>
                   </div>
                   <p className="text-[11px] text-slate-500 truncate">vathanminerals6336@gmail.com</p>
                 </div>
