@@ -1,5 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { 
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, 
+  getRedirectResult, signOut 
+} from 'firebase/auth';
 
 // VATHAN MINERALS Firebase Configuration
 const firebaseConfig = {
@@ -45,6 +48,44 @@ export async function tryGooglePopup() {
       error: err
     };
   }
+}
+
+/**
+ * Fallback to full-page Google Redirect sign-in (never blocked by mobile popup blockers).
+ */
+export async function tryGoogleRedirect() {
+  try {
+    await signInWithRedirect(auth, googleProvider);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err };
+  }
+}
+
+/**
+ * Checks if the page was opened from a Google redirect sign-in.
+ */
+export async function checkRedirectResult() {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      const user = result.user;
+      const idToken = await user.getIdToken();
+      return {
+        success: true,
+        user: {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || user.email.split('@')[0],
+          photoURL: user.photoURL,
+          idToken
+        }
+      };
+    }
+  } catch (err) {
+    return { success: false, error: err };
+  }
+  return { success: false };
 }
 
 export async function firebaseSignOut() {

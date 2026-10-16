@@ -10,9 +10,9 @@ import {
   LayoutDashboard, Users, Factory, Package, ClipboardList, ReceiptText, 
   Truck, ChartNoAxesCombined, LogOut, Menu, X, Plus, RefreshCw, ShieldCheck, 
   Boxes, UserRound, FileText, ScanFace, UserPlus, CalendarCheck, DollarSign, Rotate3d,
-  Smartphone, Phone, Sparkles, Lock, Pencil, Trash2, Edit
+  Smartphone, Phone, Sparkles, Lock, Pencil, Trash2, Edit, HardHat, CheckCircle2, ArrowRight
 } from 'lucide-react';
-import { tryGooglePopup, GOOGLE_CLIENT_ID } from './firebase';
+import { tryGooglePopup, tryGoogleRedirect, checkRedirectResult, GOOGLE_CLIENT_ID } from './firebase';
 
 const nav = [
   ['Dashboard','/dashboard',LayoutDashboard],
@@ -47,6 +47,21 @@ const configs = {
 const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
 const SAVED_EMAIL_KEY = 'vathan_remembered_login_email';
 
+export const STAFF_LIST = [
+  { code: '005', name: 'MADDELA KRISHNA', role: 'Mill Incharge', phone: '9542938030', badge: 'Mill Incharge' },
+  { code: '001', name: 'RAMA CHANDRAIAH', role: 'Mill Operator', phone: '001', badge: 'Mill Operator' },
+  { code: '002', name: 'SIVA', role: 'Supervisor', phone: '7396063526', badge: 'Supervisor' },
+  { code: '009', name: 'CHANDRA', role: 'Manager', phone: '7674859036', badge: 'Manager' },
+  { code: '010', name: 'NAGARJUNA', role: 'Manager', phone: '918207556', badge: 'Manager' },
+  { code: '008', name: 'NAVEEN', role: 'Office Incharge', phone: '9949405770', badge: 'Office Incharge' },
+  { code: '006', name: 'HARI BABU', role: 'Hitachi Operator', phone: '9848903651', badge: 'Hitachi Operator' },
+  { code: '007', name: 'KISHORE', role: 'Hitachi Helper', phone: '8374757324', badge: 'Hitachi Helper' },
+  { code: '003003', name: 'SUBODH', role: 'Operator & Watchman', phone: '7416189916', badge: 'Watchman & Op' },
+  { code: '004', name: 'GOURANGO BERA', role: 'Operator Helper', phone: '6304418709', badge: 'Operator Helper' },
+  { code: '011', name: 'NAVEEN CHOWDARY', role: 'Office Worker', phone: '9030518149', badge: 'Office Worker' },
+  { code: '012', name: 'PENCHILAIAH', role: 'Driver', phone: '9666431729', badge: 'Driver' },
+  { code: 'B-001', name: 'BHARATH MADDELA', role: 'System Manager', phone: '+91 9030678492', badge: 'System Manager' }
+];
 
 function getRememberedEmail() {
   try {
@@ -57,6 +72,7 @@ function getRememberedEmail() {
 }
 
 function Auth({onLogin}) {
+  const [loginTab, setLoginTab] = useState('admin'); // 'admin' | 'staff'
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
   
@@ -69,7 +85,45 @@ function Auth({onLogin}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // Staff Portal Login state
+  const [staffCode, setStaffCode] = useState('');
+  const [staffPassword, setStaffPassword] = useState('88904');
+  const [selectedStaff, setSelectedStaff] = useState(null);
+
   const [showMobile3D, setShowMobile3D] = useState(false);
+
+  // Check for returning Google redirect login
+  useEffect(() => {
+    let mounted = true;
+    async function checkRedirect() {
+      try {
+        const res = await checkRedirectResult();
+        if (res && res.success && res.user?.idToken && mounted) {
+          setBusy(true);
+          if (res.user.email) persistEmail(res.user.email);
+          const d = await api('/auth/google', {
+            method: 'POST',
+            body: JSON.stringify({
+              idToken: res.user.idToken,
+              email: res.user.email,
+              displayName: res.user.displayName,
+              uid: res.user.uid,
+              role: 'admin'
+            })
+          });
+          if (d && d.token && mounted) {
+            onLogin(d.user, d.token);
+          }
+        }
+      } catch (err) {
+        console.warn('Redirect check notice:', err);
+      } finally {
+        if (mounted) setBusy(false);
+      }
+    }
+    checkRedirect();
+    return () => { mounted = false; };
+  }, []);
 
   // Initialize Google Identity Services (GSI) to connect with Chrome Google accounts
   useEffect(() => {
@@ -140,7 +194,9 @@ function Auth({onLogin}) {
     try {
       // 1. First trigger Google Identity Services prompt if available
       if (window.google?.accounts?.id) {
-        window.google.accounts.id.prompt();
+        try {
+          window.google.accounts.id.prompt();
+        } catch {}
       }
 
       // 2. Launch Google popup connecting to Chrome accounts
@@ -163,8 +219,12 @@ function Auth({onLogin}) {
         }
       } else if (res.error) {
         const code = res.error.code || '';
-        if (code === 'auth/popup-closed-by-user') {
-          setError('Google Sign-In popup was closed before completing.');
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/popup-blocked') {
+          setError('Opening Google Sign-In redirect directly...');
+          const redRes = await tryGoogleRedirect();
+          if (!redRes.success) {
+            setError('Google redirect could not be started. Please sign in below using your password.');
+          }
           return;
         }
         if (code === 'auth/unauthorized-domain') {
@@ -224,6 +284,47 @@ function Auth({onLogin}) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitStaff(e) {
+    if (e) e.preventDefault();
+    const trimmedCode = (staffCode || '').trim();
+    const trimmedPass = (staffPassword || '').trim();
+
+    if (!trimmedCode) {
+      setError('Please tap your name above or enter your Employee Code / Mobile number');
+      return;
+    }
+    if (!trimmedPass) {
+      setError('Please enter your Staff PIN / Password (Default PIN is 88904)');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      const d = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: trimmedCode,
+          password: trimmedPass
+        })
+      });
+      if (d && d.token) {
+        onLogin(d.user, d.token);
+      }
+    } catch (err) {
+      setError(err.message || 'Staff login failed. Verify Employee Code or Staff PIN (Default: 88904).');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleSelectStaff(member) {
+    setSelectedStaff(member);
+    setStaffCode(member.code);
+    if (!staffPassword) setStaffPassword('88904');
+    setError('');
   }
 
   return (
@@ -313,186 +414,347 @@ function Auth({onLogin}) {
             </div>
           </div>
 
-          {error && <div className="bg-red-50 text-red-700 p-3 rounded-xl mb-4 text-sm border border-red-200">{error}</div>}
-
-          {/* Unified Clean Portal Login Form */}
-          <form onSubmit={submit} className="w-full">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shadow-sm">
-                  <ShieldCheck size={20} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-slate-900">Admin Login</h2>
-                  <p className="text-slate-500 text-xs">VATHAN MINERALS · Management & Staff Access</p>
-                </div>
-              </div>
-              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => { setIsSignUp(false); setError(''); }}
-                  className={`px-3 py-1 rounded-lg transition ${!isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setIsSignUp(true); setError(''); }}
-                  className={`px-3 py-1 rounded-lg transition ${isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                >
-                  Sign Up
-                </button>
-              </div>
-            </div>
-
-            {isSignUp && (
-              <div className="mb-4">
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name</label>
-                <input
-                  className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm"
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="e.g. Ramesh Kumar"
-                  required
-                />
-              </div>
-            )}
-
-            {/* Email or Mobile Number */}
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email or Phone Number</label>
-              <input
-                className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-medium"
-                type="text"
-                autoCapitalize="none"
-                value={email}
-                onChange={e => handleEmailChange(e.target.value)}
-                placeholder="e.g. maddelabharath20@gmail.com or 8890488904"
-                required
-              />
-              <div className="flex items-center justify-between mt-1.5 px-0.5">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-600 font-medium">
-                  <input
-                    type="checkbox"
-                    checked={rememberEmail}
-                    onChange={e => {
-                      setRememberEmail(e.target.checked);
-                      if (e.target.checked && email.trim()) {
-                        persistEmail(email.trim());
-                      }
-                    }}
-                    className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 accent-emerald-600"
-                  />
-                  <span>Remember login on this device</span>
-                </label>
-                {email && (
-                  <button
-                    type="button"
-                    onClick={() => handleEmailChange('')}
-                    className="text-[11px] text-slate-400 hover:text-slate-600 font-medium hover:underline"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Password */}
-            <div className="mb-5">
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Password</label>
-                {!isSignUp && <span className="text-[11px] text-slate-400">Master or Registered Password</span>}
-              </div>
-              <input
-                className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                required
-              />
-              {isSignUp && <p className="text-[11px] text-slate-400 mt-1">Must be at least 6 characters</p>}
-            </div>
-
-            {isSignUp && (
-              <div className="mb-6">
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Department / Role</label>
-                <select
-                  className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm bg-white"
-                  value={role}
-                  onChange={e => setRole(e.target.value)}
-                >
-                  {rolesList.map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Sign In Button */}
-            <button
-              disabled={busy}
-              type="submit"
-              className="w-full bg-slate-950 hover:bg-slate-800 text-white rounded-xl py-3 font-bold text-sm disabled:opacity-60 transition shadow-lg mt-1 flex items-center justify-center gap-2"
-            >
-              {busy ? (isSignUp ? 'Creating Account…' : 'Signing In…') : (isSignUp ? 'Create Staff Account' : 'Sign In')}
-            </button>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-4">
-              <div className="flex-1 h-px bg-slate-200" />
-              <span className="text-xs text-slate-400 font-medium">or continue with</span>
-              <div className="flex-1 h-px bg-slate-200" />
-            </div>
-
-            {/* Single Sign in with Google Button */}
+          {/* Dual Tabs: Admin Login vs Staff Login */}
+          <div className="grid grid-cols-2 p-1.5 bg-slate-100 rounded-2xl mb-5 shadow-inner border border-slate-200">
             <button
               type="button"
-              disabled={busy}
-              onClick={handleGoogleSignIn}
-              className="w-full flex items-center justify-center gap-3 border border-slate-300 hover:border-emerald-500 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 transition shadow-xs disabled:opacity-60 active:scale-[0.99]"
+              onClick={() => { setLoginTab('admin'); setError(''); }}
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                loginTab === 'admin'
+                  ? 'bg-slate-950 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
             >
-              <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
-                <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
-                <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
-                <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
-              </svg>
-              <span>{busy ? 'Signing in with Google…' : 'Sign in with Google'}</span>
+              <ShieldCheck size={16} className={loginTab === 'admin' ? 'text-emerald-400' : 'text-slate-400'} />
+              <span>Admin Login</span>
             </button>
+            <button
+              type="button"
+              onClick={() => { setLoginTab('staff'); setError(''); }}
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                loginTab === 'staff'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <HardHat size={16} className={loginTab === 'staff' ? 'text-white' : 'text-slate-400'} />
+              <span>Staff Login</span>
+            </button>
+          </div>
 
-            <div className="flex items-center justify-center gap-1.5 mt-5 text-[11px] text-slate-500 font-medium">
-              <ShieldCheck size={13} className="text-emerald-600" />
-              <span>Full secure authentication · Rly Kodur</span>
-            </div>
+          {error && <div className="bg-red-50 text-red-700 p-3 rounded-xl mb-4 text-sm border border-red-200">{error}</div>}
 
-            <div className="mt-4 text-center text-xs text-slate-500">
-              {isSignUp ? (
-                <p>
-                  Already have an account?{' '}
+          {/* TAB 1: ADMIN LOGIN */}
+          {loginTab === 'admin' && (
+            <form onSubmit={submit} className="w-full">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shadow-sm">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900">Admin Login</h2>
+                    <p className="text-slate-500 text-xs">VATHAN MINERALS · Management & Admin Access</p>
+                  </div>
+                </div>
+                <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
                   <button
                     type="button"
                     onClick={() => { setIsSignUp(false); setError(''); }}
-                    className="text-emerald-700 font-bold hover:underline"
+                    className={`px-3 py-1 rounded-lg transition ${!isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
                   >
                     Sign In
                   </button>
-                </p>
-              ) : (
-                <p>
-                  Need a new user account?{' '}
                   <button
                     type="button"
                     onClick={() => { setIsSignUp(true); setError(''); }}
-                    className="text-emerald-700 font-bold hover:underline"
+                    className={`px-3 py-1 rounded-lg transition ${isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
                   >
                     Sign Up
                   </button>
-                </p>
+                </div>
+              </div>
+
+              {isSignUp && (
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name</label>
+                  <input
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm"
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="e.g. Ramesh Kumar"
+                    required
+                  />
+                </div>
               )}
-            </div>
-          </form>
+
+              {/* Email or Mobile Number */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email or Mobile Number</label>
+                <input
+                  className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-medium"
+                  type="text"
+                  autoCapitalize="none"
+                  value={email}
+                  onChange={e => handleEmailChange(e.target.value)}
+                  placeholder="e.g. maddelabharath20@gmail.com"
+                  required
+                />
+                <div className="flex items-center justify-between mt-1.5 px-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-600 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={rememberEmail}
+                      onChange={e => {
+                        setRememberEmail(e.target.checked);
+                        if (e.target.checked && email.trim()) {
+                          persistEmail(email.trim());
+                        }
+                      }}
+                      className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 accent-emerald-600"
+                    />
+                    <span>Remember login on this device</span>
+                  </label>
+                  {email && (
+                    <button
+                      type="button"
+                      onClick={() => handleEmailChange('')}
+                      className="text-[11px] text-slate-400 hover:text-slate-600 font-medium hover:underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">Password</label>
+                  {!isSignUp && <span className="text-[11px] text-slate-400">Master / Admin Password</span>}
+                </div>
+                <input
+                  className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  required
+                />
+                {isSignUp && <p className="text-[11px] text-slate-400 mt-1">Must be at least 6 characters</p>}
+              </div>
+
+              {isSignUp && (
+                <div className="mb-6">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Department / Role</label>
+                  <select
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm bg-white"
+                    value={role}
+                    onChange={e => setRole(e.target.value)}
+                  >
+                    {rolesList.map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Sign In Button */}
+              <button
+                disabled={busy}
+                type="submit"
+                className="w-full bg-slate-950 hover:bg-slate-800 text-white rounded-xl py-3 font-bold text-sm disabled:opacity-60 transition shadow-lg mt-1 flex items-center justify-center gap-2"
+              >
+                {busy ? (isSignUp ? 'Creating Account…' : 'Signing In…') : (isSignUp ? 'Create Admin Account' : 'Sign In as Admin')}
+              </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-xs text-slate-400 font-medium">or continue with</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+
+              {/* Single Sign in with Google Button */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-3 border border-slate-300 hover:border-emerald-500 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 transition shadow-xs disabled:opacity-60 active:scale-[0.99]"
+              >
+                <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+                  <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
+                  <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
+                </svg>
+                <span>{busy ? 'Signing in with Google…' : 'Sign in with Google'}</span>
+              </button>
+
+              <div className="flex items-center justify-center gap-1.5 mt-5 text-[11px] text-slate-500 font-medium">
+                <ShieldCheck size={13} className="text-emerald-600" />
+                <span>Full secure authentication · Rly Kodur</span>
+              </div>
+
+              <div className="mt-4 text-center text-xs text-slate-500">
+                {isSignUp ? (
+                  <p>
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setIsSignUp(false); setError(''); }}
+                      className="text-emerald-700 font-bold hover:underline"
+                    >
+                      Sign In
+                    </button>
+                  </p>
+                ) : (
+                  <p>
+                    Need a new admin account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setIsSignUp(true); setError(''); }}
+                      className="text-emerald-700 font-bold hover:underline"
+                    >
+                      Sign Up
+                    </button>
+                  </p>
+                )}
+              </div>
+            </form>
+          )}
+
+          {/* TAB 2: STAFF LOGIN */}
+          {loginTab === 'staff' && (
+            <form onSubmit={submitStaff} className="w-full">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                    <HardHat size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900">Staff Login</h2>
+                    <p className="text-slate-500 text-xs">Factory, Mill, Hitachi, Drivers & Workers</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                  1-Tap Access
+                </span>
+              </div>
+
+              {/* Quick Tap Profile Selector Chips */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                    <Sparkles size={13} className="text-amber-500" />
+                    <span>Quick Select Your Name:</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Tap below to fill</span>
+                </div>
+                <div className="max-h-40 overflow-y-auto p-1.5 border rounded-xl bg-slate-50/70">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {STAFF_LIST.map(member => {
+                      const isSelected = (selectedStaff?.code === member.code) || (staffCode === member.code);
+                      return (
+                        <button
+                          key={member.code}
+                          type="button"
+                          onClick={() => handleSelectStaff(member)}
+                          className={`text-left p-2 rounded-lg border text-xs transition flex items-center justify-between gap-1.5 ${
+                            isSelected
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-bold shadow-xs'
+                              : 'bg-white border-slate-200 hover:border-emerald-300 text-slate-700'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="font-bold truncate text-[11px]">{member.name}</p>
+                            <p className="text-[9px] text-slate-500 truncate">{member.role} · #{member.code}</p>
+                          </div>
+                          {isSelected && <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Employee Code / Mobile Input */}
+              <div className="mb-3">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Employee Code or Mobile Number
+                </label>
+                <div className="relative">
+                  <input
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold"
+                    type="text"
+                    value={staffCode}
+                    onChange={e => {
+                      setStaffCode(e.target.value);
+                      setSelectedStaff(null);
+                    }}
+                    placeholder="e.g. 001, 005, 002, 003003, 9542938030"
+                    required
+                  />
+                  {staffCode && (
+                    <button
+                      type="button"
+                      onClick={() => { setStaffCode(''); setSelectedStaff(null); }}
+                      className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-bold"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Staff PIN / Password */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Staff PIN / Password</label>
+                  <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Default PIN: 88904
+                  </span>
+                </div>
+                <input
+                  className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold tracking-wider"
+                  type="password"
+                  value={staffPassword}
+                  onChange={e => setStaffPassword(e.target.value)}
+                  placeholder="88904"
+                  required
+                />
+                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                  <Lock size={11} className="text-emerald-600 shrink-0" />
+                  <span>All employees can sign in with PIN <strong className="text-slate-800">88904</strong></span>
+                </p>
+              </div>
+
+              {/* Staff Sign In Button */}
+              <button
+                disabled={busy}
+                type="submit"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-3 font-bold text-sm disabled:opacity-60 transition shadow-lg flex items-center justify-center gap-2"
+              >
+                {busy ? (
+                  <span>Signing In…</span>
+                ) : (
+                  <>
+                    <span>Sign In to Staff Portal</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+
+              <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 size={13} className="text-emerald-600" />
+                  Instant Staff Access
+                </p>
+                <p>Access your Attendance, Daily Logs, Leave Requests, and Monthly Payslips anytime.</p>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>
