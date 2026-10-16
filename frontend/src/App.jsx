@@ -47,216 +47,13 @@ const configs = {
 const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
 const SAVED_EMAIL_KEY = 'vathan_remembered_login_email';
 
-const COMPANY_ACCOUNTS = [
-  // Management & Proprietorship
-  {
-    name: 'MADDELA BHARATH',
-    email: 'maddelabharath20@gmail.com',
-    category: 'management',
-    role: 'admin',
-    badge: 'Admin',
-    badgeClass: 'bg-emerald-100 text-emerald-800',
-    avatar: 'MB',
-    avatarBg: 'bg-emerald-600 text-white',
-    subtitle: 'System Administrator & Management'
-  },
-  {
-    name: 'MADDELA VENKATA SUBBAIAH',
-    email: 'vathanminerals6336@gmail.com',
-    category: 'management',
-    role: 'admin',
-    badge: 'Proprietor',
-    badgeClass: 'bg-blue-100 text-blue-800',
-    avatar: 'MV',
-    avatarBg: 'bg-slate-900 text-emerald-400',
-    subtitle: 'Proprietor & Managing Director'
-  },
-  {
-    name: 'Bharath Maddela',
-    email: 'bharath.maddela@gmail.com',
-    category: 'management',
-    role: 'admin',
-    badge: 'Operations Admin',
-    badgeClass: 'bg-purple-100 text-purple-800',
-    avatar: 'BM',
-    avatarBg: 'bg-purple-700 text-white',
-    subtitle: 'Mining & Fleet Operations'
-  },
-  {
-    name: 'HR Specialist',
-    email: 'hr@vathanminerals.com',
-    category: 'management',
-    role: 'hr',
-    badge: 'HR & People',
-    badgeClass: 'bg-rose-100 text-rose-800',
-    avatar: 'HR',
-    avatarBg: 'bg-rose-600 text-white',
-    subtitle: 'HR Specialist & Payroll'
-  },
-  // Staff & Mill Operations
-  {
-    name: 'MADDELA KRISHNA',
-    email: 'krishna.personal@gmail.com',
-    phone: '9542938030',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Mill Incharge',
-    badgeClass: 'bg-amber-100 text-amber-800',
-    avatar: 'MK',
-    avatarBg: 'bg-amber-600 text-white',
-    subtitle: 'Mill Incharge · Emp Code: 005'
-  },
-  {
-    name: 'Ramesh Kumar',
-    email: 'ramesh.kumar@gmail.com',
-    phone: '+91 9876543211',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Plant Supervisor',
-    badgeClass: 'bg-cyan-100 text-cyan-800',
-    avatar: 'RK',
-    avatarBg: 'bg-cyan-700 text-white',
-    subtitle: 'Plant Supervisor · Emp Code: EMP-002'
-  },
-  {
-    name: 'SIVA',
-    email: 'siva.operator@gmail.com',
-    phone: '7396063526',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Supervisor',
-    badgeClass: 'bg-teal-100 text-teal-800',
-    avatar: 'SI',
-    avatarBg: 'bg-teal-700 text-white',
-    subtitle: 'Supervisor · Emp Code: 002'
-  },
-  {
-    name: 'RAMA CHANDRAIAH',
-    email: 'ramachandraiah@gmail.com',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Mill Operator',
-    badgeClass: 'bg-slate-100 text-slate-800',
-    avatar: 'RC',
-    avatarBg: 'bg-slate-700 text-white',
-    subtitle: 'Mill Operator · Emp Code: 001'
-  },
-  {
-    name: 'CHANDRA',
-    email: 'staff.009@vathanminerals.com',
-    phone: '7674859036',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Manager',
-    badgeClass: 'bg-indigo-100 text-indigo-800',
-    avatar: 'CH',
-    avatarBg: 'bg-indigo-700 text-white',
-    subtitle: 'Manager · Emp Code: 009'
-  },
-  {
-    name: 'NAGARJUNA',
-    email: 'staff.010@vathanminerals.com',
-    phone: '918207556',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Manager',
-    badgeClass: 'bg-indigo-100 text-indigo-800',
-    avatar: 'NA',
-    avatarBg: 'bg-indigo-700 text-white',
-    subtitle: 'Manager · Emp Code: 010'
-  },
-  {
-    name: 'NAVEEN',
-    email: 'staff.008@vathanminerals.com',
-    phone: '9949405770',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Office Incharge',
-    badgeClass: 'bg-sky-100 text-sky-800',
-    avatar: 'NV',
-    avatarBg: 'bg-sky-700 text-white',
-    subtitle: 'Office Incharge · Emp Code: 008'
-  },
-  {
-    name: 'HARI BABU',
-    email: 'staff.006@vathanminerals.com',
-    phone: '9848903651',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Hitachi Operator',
-    badgeClass: 'bg-orange-100 text-orange-800',
-    avatar: 'HB',
-    avatarBg: 'bg-orange-600 text-white',
-    subtitle: 'Hitachi Operator · Emp Code: 006'
-  },
-  {
-    name: 'KISHORE',
-    email: 'staff.007@vathanminerals.com',
-    phone: '8374757324',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Hitachi Helper',
-    badgeClass: 'bg-stone-100 text-stone-800',
-    avatar: 'KS',
-    avatarBg: 'bg-stone-600 text-white',
-    subtitle: 'Hitachi Helper · Emp Code: 007'
-  },
-  {
-    name: 'SUBODH',
-    email: 'staff.003003@vathanminerals.com',
-    phone: '7416189916',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Operator & Watchman',
-    badgeClass: 'bg-zinc-100 text-zinc-800',
-    avatar: 'SB',
-    avatarBg: 'bg-zinc-700 text-white',
-    subtitle: 'Operator & Watchman · Emp Code: 003003'
-  },
-  {
-    name: 'GOURANGO BERA',
-    email: 'staff.004@vathanminerals.com',
-    phone: '6304418709',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Operator Helper',
-    badgeClass: 'bg-stone-100 text-stone-800',
-    avatar: 'GB',
-    avatarBg: 'bg-stone-600 text-white',
-    subtitle: 'Operator Helper · Emp Code: 004'
-  },
-  {
-    name: 'NAVEEN CHOWDARY',
-    email: 'staff.011@vathanminerals.com',
-    phone: '9030518149',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Office Worker',
-    badgeClass: 'bg-violet-100 text-violet-800',
-    avatar: 'NC',
-    avatarBg: 'bg-violet-600 text-white',
-    subtitle: 'Office Worker · Emp Code: 011'
-  },
-  {
-    name: 'PENCHILAIAH',
-    email: 'staff.012@vathanminerals.com',
-    phone: '9666431729',
-    category: 'staff',
-    role: 'staff',
-    badge: 'Driver',
-    badgeClass: 'bg-amber-100 text-amber-800',
-    avatar: 'PE',
-    avatarBg: 'bg-amber-700 text-white',
-    subtitle: 'Driver · Emp Code: 012'
-  }
-];
 
 function getRememberedEmail() {
   try {
     const v = localStorage.getItem(SAVED_EMAIL_KEY);
     if (v && v.trim()) return v.trim();
   } catch {}
-  return 'maddelabharath20@gmail.com';
+  return '';
 }
 
 function Auth({onLogin}) {
@@ -564,43 +361,7 @@ function Auth({onLogin}) {
 
             {/* Email or Mobile Number */}
             <div className="mb-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Email or Phone Number</label>
-                {email && (
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    Selected
-                  </span>
-                )}
-              </div>
-
-              {/* Company Directory Dropdown to Select Any Existing Account */}
-              <select
-                value={email}
-                onChange={e => {
-                  if (e.target.value) {
-                    handleEmailChange(e.target.value);
-                  }
-                }}
-                className="w-full border rounded-xl px-3 py-2 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-600 transition border-slate-200 cursor-pointer mb-2"
-              >
-                <option value="">-- Select from Existing All Emails ({COMPANY_ACCOUNTS.length}) --</option>
-                <optgroup label="👑 Management & Administration">
-                  {COMPANY_ACCOUNTS.filter(a => a.category === 'management').map(a => (
-                    <option key={a.email} value={a.email}>
-                      {a.name} ({a.email}) · {a.badge}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="⛏️ Supervisors & Staff Accounts">
-                  {COMPANY_ACCOUNTS.filter(a => a.category === 'staff').map(a => (
-                    <option key={a.email} value={a.email}>
-                      {a.name} ({a.email}) · {a.badge}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email or Phone Number</label>
               <input
                 className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-medium"
                 type="text"
@@ -623,7 +384,7 @@ function Auth({onLogin}) {
                     }}
                     className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 accent-emerald-600"
                   />
-                  <span>Keep this email selected for Web & App</span>
+                  <span>Remember login on this device</span>
                 </label>
                 {email && (
                   <button
