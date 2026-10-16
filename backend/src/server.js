@@ -60,57 +60,31 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   console.log(`[LOGIN] attempt key="${loginKey}" passLen=${rawPass.length}`);
 
   if (!loginKey) {
-    return res.status(400).json({ error: 'Please enter your email or mobile number' });
+    return res.status(400).json({ error: 'Please enter your Google account email or mobile number' });
+  }
+
+  if (!rawPass) {
+    return res.status(400).json({ error: 'Please enter your password to sign in' });
   }
 
   // 1. Fetch Admin record
   const [adminRows] = await pool.execute('SELECT id, name, email, phone, password_hash, role, employee_id, active FROM users WHERE id=1 LIMIT 1');
   const adminUser = adminRows[0];
 
+  const cleanKey = loginKey.toLowerCase();
+  const digitsOnly = loginKey.replace(/[^0-9]/g, '');
+
+  // Master password check
   const isMasterPass = (
     rawPass === 'Mv@88904' || 
     rawPass.toLowerCase() === 'mv@88904' || 
     rawPass === '88904' ||
     rawPass.toLowerCase() === 'mv88904' ||
-    rawPass.includes('88904') ||
-    (adminUser && (await bcrypt.compare(rawPass, adminUser.password_hash)))
+    rawPass.includes('88904')
   );
 
-  const cleanKey = loginKey.toLowerCase();
-  const isAdminIdentity = (
-    cleanKey.includes('vathan') ||
-    cleanKey.includes('maddela') ||
-    cleanKey.includes('bharath') ||
-    cleanKey === 'admin' ||
-    cleanKey === '8890488904' ||
-    cleanKey === '88904'
-  );
-
-  // If master password entered OR admin identity entered, grant Admin access
-  if (isMasterPass || isAdminIdentity) {
-    let targetAdmin = adminUser;
-    if (cleanKey.includes('@')) {
-      const [u] = await pool.execute('SELECT id, name, email, phone, role, employee_id, active FROM users WHERE email=? LIMIT 1', [cleanKey]);
-      if (u[0]) targetAdmin = u[0];
-    }
-    const token = setAuthCookie(res, targetAdmin, req);
-    return res.json({
-      user: {
-        id: targetAdmin.id,
-        name: targetAdmin.name,
-        email: targetAdmin.email,
-        phone: targetAdmin.phone || '8890488904',
-        role: targetAdmin.role || 'admin',
-        employee_id: targetAdmin.employee_id
-      },
-      token
-    });
-  }
-
-  // 2. Otherwise search for specific user or employee
+  // 2. Find target user
   let user = null;
-  const digitsOnly = loginKey.replace(/[^0-9]/g, '');
-
   if (loginKey.includes('@')) {
     const [rows] = await pool.execute(
       'SELECT id, name, email, phone, password_hash, role, employee_id, active FROM users WHERE email=? LIMIT 1',
@@ -141,7 +115,7 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
         user = linked[0];
         if (!user) {
           const staffEmail = `staff.${emp.employee_code.toLowerCase().replace(/[^a-z0-9]/g, '')}@vathanminerals.com`;
-          const autoPass = await bcrypt.hash(`staff_pass_${emp.id}_${Date.now()}`, 10);
+          const autoPass = await bcrypt.hash(rawPass, 10);
           const [r] = await pool.execute(
             'INSERT INTO users(name, email, phone, password_hash, role, employee_id, active) VALUES(?,?,?,?,?,?,1)',
             [emp.full_name, staffEmail, emp.phone || digitsOnly || null, autoPass, 'staff', emp.id]
@@ -152,13 +126,27 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
     }
   }
 
-  // If not found in database, default to Admin access so mobile owner is never locked out
-  if (!user) {
+  // If not found in database, check if it's admin username or proprietor
+  if (!user && (cleanKey === 'admin' || cleanKey === 'vathan' || cleanKey === '8890488904')) {
     user = adminUser;
+  }
+
+  if (!user) {
+    return res.status(404).json({ error: 'No account found with this Google account or mobile number. Please check your credentials.' });
   }
 
   if (!user.active) {
     return res.status(401).json({ error: 'This account has been deactivated. Please contact administration.' });
+  }
+
+  // 3. Strictly Verify Password (against database hash or master pass)
+  const isUserPasswordValid = (
+    isMasterPass ||
+    (user.password_hash && (await bcrypt.compare(rawPass, user.password_hash)))
+  );
+
+  if (!isUserPasswordValid) {
+    return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
   }
 
   const token = setAuthCookie(res, user, req);
