@@ -256,10 +256,64 @@ app.post('/api/auth/signup', asyncRoute(async (req, res) => {
   }
 }));
 app.post('/api/auth/google', asyncRoute(async (req, res) => {
-  const { email, displayName, uid, role } = req.body || {};
-  if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Valid Google email is required' });
+  const { credential, idToken, email, displayName, uid, password, role } = req.body || {};
 
-  const cleanEmail = email.toLowerCase().trim();
+  let verifiedEmail = null;
+  let verifiedDisplayName = displayName;
+  let isGoogleVerified = false;
+
+  const tokenToVerify = credential || idToken;
+  if (tokenToVerify && typeof tokenToVerify === 'string') {
+    try {
+      // 1. Check with Google's official OAuth2 tokeninfo endpoint
+      const gRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenToVerify)}`);
+      if (gRes.ok) {
+        const info = await gRes.json();
+        if (info && info.email) {
+          verifiedEmail = info.email.toLowerCase().trim();
+          verifiedDisplayName = info.name || verifiedDisplayName;
+          isGoogleVerified = true;
+        }
+      } else {
+        // 2. Check with Firebase Identity Toolkit endpoint
+        const fbRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyDw6Fk3TVzleL5cU7xjiZs0ixC02hxZeA8`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: tokenToVerify })
+        });
+        if (fbRes.ok) {
+          const fbData = await fbRes.json();
+          const fbUser = fbData.users?.[0];
+          if (fbUser && fbUser.email) {
+            verifiedEmail = fbUser.email.toLowerCase().trim();
+            verifiedDisplayName = fbUser.displayName || verifiedDisplayName;
+            isGoogleVerified = true;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Google token verification network exception:', e.message);
+    }
+  }
+
+  const cleanEmail = (verifiedEmail || (typeof email === 'string' ? email : '')).toLowerCase().trim();
+  if (!cleanEmail) {
+    return res.status(400).json({ error: 'Valid Google email or token is required' });
+  }
+
+  // Security Check: If the token was not cryptographically verified by Google, require valid user password
+  if (!isGoogleVerified) {
+    if (!password || typeof password !== 'string') {
+      return res.status(401).json({
+        error: 'Full security required: Real Google Account authentication token or valid account password is required.'
+      });
+    }
+    const [uRows] = await pool.execute('SELECT password_hash FROM users WHERE email=? LIMIT 1', [cleanEmail]);
+    if (!uRows[0] || !(await bcrypt.compare(password, uRows[0].password_hash))) {
+      return res.status(401).json({ error: 'Invalid Google account authentication or password.' });
+    }
+  }
+
   const [rows] = await pool.execute('SELECT id, name, email, role, employee_id, phone, active FROM users WHERE email=? LIMIT 1', [cleanEmail]);
   let existingUser = rows[0];
 

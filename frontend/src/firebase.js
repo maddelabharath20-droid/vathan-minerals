@@ -17,6 +17,7 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+export const GOOGLE_CLIENT_ID = "734610124221-dsoq0g2p0fk6klrdn1762v9stjet52j8.apps.googleusercontent.com";
 
 /**
  * Attempts standard Google popup sign-in.

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { api, setAuthToken, clearAuthToken, getAuthToken } from './api';
 import AttendanceManager from './AttendanceManager';
 import VMLogo, { LeadershipBadge } from './VMLogo';
@@ -12,7 +12,7 @@ import {
   Boxes, UserRound, FileText, ScanFace, UserPlus, CalendarCheck, DollarSign, Rotate3d,
   Smartphone, Phone, Sparkles, Lock, Pencil, Trash2, Edit
 } from 'lucide-react';
-import { tryGooglePopup } from './firebase';
+import { tryGooglePopup, GOOGLE_CLIENT_ID } from './firebase';
 
 const nav = [
   ['Dashboard','/dashboard',LayoutDashboard],
@@ -274,28 +274,67 @@ function Auth({onLogin}) {
 
   const [showMobile3D, setShowMobile3D] = useState(false);
 
-  // Google Sign-In state & handlers
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [selectedGoogleEmail, setSelectedGoogleEmail] = useState(() => getRememberedEmail());
-  const [modalPassword, setModalPassword] = useState('Mv@88904');
-  const [modalError, setModalError] = useState('');
-  const [modalCategory, setModalCategory] = useState('all');
-  const [modalSearch, setModalSearch] = useState('');
+  const googleBtnContainerRef = useRef(null);
 
-  const filteredCompanyAccounts = useMemo(() => {
-    return COMPANY_ACCOUNTS.filter(acc => {
-      const matchCat = modalCategory === 'all' || acc.category === modalCategory;
-      if (!matchCat) return false;
-      if (!modalSearch.trim()) return true;
-      const s = modalSearch.toLowerCase().trim();
-      return (
-        acc.name.toLowerCase().includes(s) ||
-        acc.email.toLowerCase().includes(s) ||
-        (acc.phone && acc.phone.includes(s)) ||
-        (acc.badge && acc.badge.toLowerCase().includes(s))
-      );
-    });
-  }, [modalCategory, modalSearch]);
+  // Initialize Google Identity Services (GSI) to connect with Chrome Google accounts
+  useEffect(() => {
+    function initGIS() {
+      if (window.google?.accounts?.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+          });
+
+          if (googleBtnContainerRef.current) {
+            window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
+              theme: 'outline',
+              size: 'large',
+              type: 'standard',
+              text: 'signin_with',
+              shape: 'rectangular',
+              logo_alignment: 'left',
+              width: 320
+            });
+          }
+
+          // Trigger native Chrome One Tap popup for signed-in Chrome accounts
+          window.google.accounts.id.prompt();
+        } catch (e) {
+          console.warn('Google Identity Services notice:', e);
+        }
+      }
+    }
+
+    initGIS();
+    const timer = setTimeout(initGIS, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  async function handleGoogleCredentialResponse(response) {
+    if (!response || !response.credential) return;
+    setBusy(true);
+    setError('');
+    try {
+      const d = await api('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({
+          credential: response.credential,
+          role: 'admin'
+        })
+      });
+      if (d && d.token) {
+        if (d.user?.email) persistEmail(d.user.email);
+        onLogin(d.user, d.token);
+      }
+    } catch (err) {
+      setError(err.message || 'Google account verification failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function persistEmail(emailToSave) {
     if (emailToSave && emailToSave.trim()) {
@@ -307,7 +346,6 @@ function Auth({onLogin}) {
 
   function handleEmailChange(val) {
     setEmail(val);
-    setSelectedGoogleEmail(val);
     if (rememberEmail && val && val.trim()) {
       persistEmail(val);
     }
@@ -317,108 +355,43 @@ function Auth({onLogin}) {
     setError('');
     setBusy(true);
     try {
+      // 1. First trigger Google Identity Services prompt if available
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.prompt();
+      }
+
+      // 2. Launch Google popup connecting to Chrome accounts
       const res = await tryGooglePopup();
-      if (res.success && res.user?.email) {
-        persistEmail(res.user.email);
+      if (res.success && res.user?.idToken) {
+        if (res.user.email) persistEmail(res.user.email);
         const d = await api('/auth/google', {
           method: 'POST',
           body: JSON.stringify({
+            idToken: res.user.idToken,
             email: res.user.email,
             displayName: res.user.displayName,
             uid: res.user.uid,
             role: 'admin'
           })
         });
-        onLogin(d.user, d.token);
-        return;
+        if (d && d.token) {
+          onLogin(d.user, d.token);
+          return;
+        }
+      } else if (res.error) {
+        const code = res.error.code || '';
+        if (code === 'auth/popup-closed-by-user') {
+          setError('Google Sign-In popup was closed before completing.');
+          return;
+        }
+        if (code === 'auth/unauthorized-domain') {
+          setError('Google Sign-In: Domain vathan-minerals.vercel.app needs to be added in Firebase Console, or sign in below with password.');
+          return;
+        }
+        setError(res.error.message || 'Google Sign-In failed. Please try again or use password login.');
       }
-      // If popup was blocked, closed, or domain not authorized in Firebase Console:
-      const activeEmail = email || getRememberedEmail();
-      setSelectedGoogleEmail(activeEmail);
-      setModalPassword(password || 'Mv@88904');
-      setShowGoogleModal(true);
     } catch (err) {
-      const activeEmail = email || getRememberedEmail();
-      setSelectedGoogleEmail(activeEmail);
-      setModalPassword(password || 'Mv@88904');
-      setShowGoogleModal(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function quickGoogleLogin(accEmail, accDisplayName = '', accRole = 'staff') {
-    setBusy(true);
-    setModalError('');
-    persistEmail(accEmail);
-    setEmail(accEmail);
-    setSelectedGoogleEmail(accEmail);
-    try {
-      // 1. Google support authentication first
-      try {
-        const g = await api('/auth/google', {
-          method: 'POST',
-          body: JSON.stringify({
-            email: accEmail,
-            displayName: accDisplayName || accEmail.split('@')[0],
-            role: accRole
-          })
-        });
-        setShowGoogleModal(false);
-        onLogin(g.user, g.token);
-        return;
-      } catch (gErr) {
-        console.warn('Google auth endpoint retry:', gErr);
-      }
-
-      // 2. Fallback to password login with master credentials
-      const d = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: accEmail, password: 'Mv@88904' })
-      });
-      setShowGoogleModal(false);
-      onLogin(d.user, d.token);
-    } catch (err) {
-      setModalError(err.message || 'Login failed. Please verify credentials.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function submitModalGoogleLogin(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    const targetEmail = (selectedGoogleEmail || '').trim();
-    const targetPass = (modalPassword || '').trim();
-    if (!targetEmail) {
-      setModalError('Please select or enter a Google account email');
-      return;
-    }
-    setBusy(true);
-    setModalError('');
-    persistEmail(targetEmail);
-    setEmail(targetEmail);
-    try {
-      // Try Google auth first
-      try {
-        const g = await api('/auth/google', {
-          method: 'POST',
-          body: JSON.stringify({ email: targetEmail, displayName: targetEmail.split('@')[0] })
-        });
-        setShowGoogleModal(false);
-        onLogin(g.user, g.token);
-        return;
-      } catch (gErr) {
-        console.warn('Google auth fallback:', gErr);
-      }
-
-      const d = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: targetEmail, password: targetPass || 'Mv@88904' })
-      });
-      setShowGoogleModal(false);
-      onLogin(d.user, d.token);
-    } catch (err) {
-      setModalError(err.message || 'Login failed. Please check your credentials.');
+      setError(err.message || 'Google Sign-In error. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -733,25 +706,30 @@ function Auth({onLogin}) {
               <div className="flex-1 h-px bg-slate-200" />
             </div>
 
-            {/* Sign in with Google Account Button */}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleGoogleSignIn}
-              className="w-full flex items-center justify-center gap-3 border border-slate-200 hover:border-slate-300 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700 transition shadow-sm disabled:opacity-60 active:scale-[0.99]"
-            >
-              <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
-                <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
-                <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
-                <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
-              </svg>
-              <span>Sign in with Google Account</span>
-            </button>
+            {/* Google Sign-In with Chrome Accounts Section */}
+            <div className="space-y-2">
+              {/* Google Identity Services official rendered button */}
+              <div ref={googleBtnContainerRef} className="flex justify-center min-h-[44px]" />
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-3 border border-slate-300 hover:border-emerald-500 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 transition shadow-xs disabled:opacity-60 active:scale-[0.99]"
+              >
+                <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+                  <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
+                  <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
+                </svg>
+                <span>{busy ? 'Connecting to Chrome…' : 'Sign in with Google Account'}</span>
+              </button>
+            </div>
 
             <div className="flex items-center justify-center gap-1.5 mt-5 text-[11px] text-slate-500 font-medium">
               <ShieldCheck size={13} className="text-emerald-600" />
-              <span>Authorized company & staff portal · Rly Kodur</span>
+              <span>Full secure authentication · Rly Kodur</span>
             </div>
 
             <div className="mt-4 text-center text-xs text-slate-500">
@@ -782,139 +760,6 @@ function Auth({onLogin}) {
           </form>
         </div>
       </div>
-
-      {/* Seamless Google Account Selector Modal (Works on Mobile & Desktop) */}
-      {showGoogleModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <svg width="24" height="24" viewBox="0 0 48 48">
-                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
-                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
-                  <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
-                  <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
-                </svg>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">Sign in with Google</h3>
-                  <p className="text-[11px] text-slate-500">Choose from all company & staff accounts</p>
-                </div>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setShowGoogleModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Category Filter Tabs */}
-            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold mb-2.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setModalCategory('all')}
-                className={`flex-1 py-1 rounded-lg transition text-[11px] ${modalCategory === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
-              >
-                All Accounts ({COMPANY_ACCOUNTS.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalCategory('management')}
-                className={`flex-1 py-1 rounded-lg transition text-[11px] ${modalCategory === 'management' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
-              >
-                Management
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalCategory('staff')}
-                className={`flex-1 py-1 rounded-lg transition text-[11px] ${modalCategory === 'staff' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
-              >
-                Staff & Mill
-              </button>
-            </div>
-
-            {/* Quick Search */}
-            <div className="mb-2 shrink-0">
-              <input
-                type="text"
-                placeholder="Search by name, email, or role…"
-                value={modalSearch}
-                onChange={e => setModalSearch(e.target.value)}
-                className="w-full text-xs px-3 py-1.5 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 bg-slate-50 placeholder:text-slate-400 border-slate-200"
-              />
-            </div>
-
-            {/* Scrollable Accounts List */}
-            <div className="space-y-1.5 overflow-y-auto max-h-52 pr-1 flex-1">
-              {filteredCompanyAccounts.map(acc => {
-                const isSelected = (selectedGoogleEmail || '').toLowerCase() === acc.email.toLowerCase();
-                return (
-                  <button
-                    key={acc.email}
-                    type="button"
-                    onClick={() => quickGoogleLogin(acc.email, acc.name, acc.role)}
-                    disabled={busy}
-                    className={`w-full flex items-center gap-3 p-2.5 rounded-2xl border transition text-left active:scale-[0.99] ${
-                      isSelected
-                        ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/30 shadow-xs'
-                        : 'hover:bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-full ${acc.avatarBg} font-bold text-xs flex items-center justify-center shrink-0`}>
-                      {acc.avatar}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-slate-900 truncate">{acc.name}</p>
-                        <div className="flex items-center gap-1 shrink-0 ml-1">
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${acc.badgeClass}`}>{acc.badge}</span>
-                          {isSelected && (
-                            <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded shadow-2xs">✓ Selected</span>
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-slate-500 truncate">{acc.email}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Custom Google Email Input */}
-            <div className="pt-2.5 border-t border-slate-100 mt-2 shrink-0">
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Or use any other Google Gmail:</label>
-              <div className="space-y-1.5">
-                <input
-                  type="email"
-                  placeholder="e.g. employee@gmail.com"
-                  value={selectedGoogleEmail}
-                  onChange={e => handleEmailChange(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
-                />
-                <input
-                  type="password"
-                  placeholder="Password (defaults to master)"
-                  value={modalPassword}
-                  onChange={e => setModalPassword(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
-                />
-                {modalError && (
-                  <div className="bg-red-50 text-red-700 p-2 rounded-xl text-xs border border-red-200">{modalError}</div>
-                )}
-                <button
-                  type="button"
-                  onClick={submitModalGoogleLogin}
-                  disabled={busy}
-                  className="w-full bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold py-2 rounded-xl transition shadow-sm"
-                >
-                  {busy ? 'Signing In…' : 'Sign In with Google'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
