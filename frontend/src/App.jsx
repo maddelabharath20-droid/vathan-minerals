@@ -47,6 +47,210 @@ const configs = {
 const fmt = n => Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:3});
 const SAVED_EMAIL_KEY = 'vathan_remembered_login_email';
 
+const COMPANY_ACCOUNTS = [
+  // Management & Proprietorship
+  {
+    name: 'MADDELA BHARATH',
+    email: 'maddelabharath20@gmail.com',
+    category: 'management',
+    role: 'admin',
+    badge: 'Admin',
+    badgeClass: 'bg-emerald-100 text-emerald-800',
+    avatar: 'MB',
+    avatarBg: 'bg-emerald-600 text-white',
+    subtitle: 'System Administrator & Management'
+  },
+  {
+    name: 'MADDELA VENKATA SUBBAIAH',
+    email: 'vathanminerals6336@gmail.com',
+    category: 'management',
+    role: 'admin',
+    badge: 'Proprietor',
+    badgeClass: 'bg-blue-100 text-blue-800',
+    avatar: 'MV',
+    avatarBg: 'bg-slate-900 text-emerald-400',
+    subtitle: 'Proprietor & Managing Director'
+  },
+  {
+    name: 'Bharath Maddela',
+    email: 'bharath.maddela@gmail.com',
+    category: 'management',
+    role: 'admin',
+    badge: 'Operations Admin',
+    badgeClass: 'bg-purple-100 text-purple-800',
+    avatar: 'BM',
+    avatarBg: 'bg-purple-700 text-white',
+    subtitle: 'Mining & Fleet Operations'
+  },
+  {
+    name: 'HR Specialist',
+    email: 'hr@vathanminerals.com',
+    category: 'management',
+    role: 'hr',
+    badge: 'HR & People',
+    badgeClass: 'bg-rose-100 text-rose-800',
+    avatar: 'HR',
+    avatarBg: 'bg-rose-600 text-white',
+    subtitle: 'HR Specialist & Payroll'
+  },
+  // Staff & Mill Operations
+  {
+    name: 'MADDELA KRISHNA',
+    email: 'krishna.personal@gmail.com',
+    phone: '9542938030',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Mill Incharge',
+    badgeClass: 'bg-amber-100 text-amber-800',
+    avatar: 'MK',
+    avatarBg: 'bg-amber-600 text-white',
+    subtitle: 'Mill Incharge · Emp Code: 005'
+  },
+  {
+    name: 'Ramesh Kumar',
+    email: 'ramesh.kumar@gmail.com',
+    phone: '+91 9876543211',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Plant Supervisor',
+    badgeClass: 'bg-cyan-100 text-cyan-800',
+    avatar: 'RK',
+    avatarBg: 'bg-cyan-700 text-white',
+    subtitle: 'Plant Supervisor · Emp Code: EMP-002'
+  },
+  {
+    name: 'SIVA',
+    email: 'siva.operator@gmail.com',
+    phone: '7396063526',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Supervisor',
+    badgeClass: 'bg-teal-100 text-teal-800',
+    avatar: 'SI',
+    avatarBg: 'bg-teal-700 text-white',
+    subtitle: 'Supervisor · Emp Code: 002'
+  },
+  {
+    name: 'RAMA CHANDRAIAH',
+    email: 'ramachandraiah@gmail.com',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Mill Operator',
+    badgeClass: 'bg-slate-100 text-slate-800',
+    avatar: 'RC',
+    avatarBg: 'bg-slate-700 text-white',
+    subtitle: 'Mill Operator · Emp Code: 001'
+  },
+  {
+    name: 'CHANDRA',
+    email: 'staff.009@vathanminerals.com',
+    phone: '7674859036',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Manager',
+    badgeClass: 'bg-indigo-100 text-indigo-800',
+    avatar: 'CH',
+    avatarBg: 'bg-indigo-700 text-white',
+    subtitle: 'Manager · Emp Code: 009'
+  },
+  {
+    name: 'NAGARJUNA',
+    email: 'staff.010@vathanminerals.com',
+    phone: '918207556',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Manager',
+    badgeClass: 'bg-indigo-100 text-indigo-800',
+    avatar: 'NA',
+    avatarBg: 'bg-indigo-700 text-white',
+    subtitle: 'Manager · Emp Code: 010'
+  },
+  {
+    name: 'NAVEEN',
+    email: 'staff.008@vathanminerals.com',
+    phone: '9949405770',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Office Incharge',
+    badgeClass: 'bg-sky-100 text-sky-800',
+    avatar: 'NV',
+    avatarBg: 'bg-sky-700 text-white',
+    subtitle: 'Office Incharge · Emp Code: 008'
+  },
+  {
+    name: 'HARI BABU',
+    email: 'staff.006@vathanminerals.com',
+    phone: '9848903651',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Hitachi Operator',
+    badgeClass: 'bg-orange-100 text-orange-800',
+    avatar: 'HB',
+    avatarBg: 'bg-orange-600 text-white',
+    subtitle: 'Hitachi Operator · Emp Code: 006'
+  },
+  {
+    name: 'KISHORE',
+    email: 'staff.007@vathanminerals.com',
+    phone: '8374757324',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Hitachi Helper',
+    badgeClass: 'bg-stone-100 text-stone-800',
+    avatar: 'KS',
+    avatarBg: 'bg-stone-600 text-white',
+    subtitle: 'Hitachi Helper · Emp Code: 007'
+  },
+  {
+    name: 'SUBODH',
+    email: 'staff.003003@vathanminerals.com',
+    phone: '7416189916',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Operator & Watchman',
+    badgeClass: 'bg-zinc-100 text-zinc-800',
+    avatar: 'SB',
+    avatarBg: 'bg-zinc-700 text-white',
+    subtitle: 'Operator & Watchman · Emp Code: 003003'
+  },
+  {
+    name: 'GOURANGO BERA',
+    email: 'staff.004@vathanminerals.com',
+    phone: '6304418709',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Operator Helper',
+    badgeClass: 'bg-stone-100 text-stone-800',
+    avatar: 'GB',
+    avatarBg: 'bg-stone-600 text-white',
+    subtitle: 'Operator Helper · Emp Code: 004'
+  },
+  {
+    name: 'NAVEEN CHOWDARY',
+    email: 'staff.011@vathanminerals.com',
+    phone: '9030518149',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Office Worker',
+    badgeClass: 'bg-violet-100 text-violet-800',
+    avatar: 'NC',
+    avatarBg: 'bg-violet-600 text-white',
+    subtitle: 'Office Worker · Emp Code: 011'
+  },
+  {
+    name: 'PENCHILAIAH',
+    email: 'staff.012@vathanminerals.com',
+    phone: '9666431729',
+    category: 'staff',
+    role: 'staff',
+    badge: 'Driver',
+    badgeClass: 'bg-amber-100 text-amber-800',
+    avatar: 'PE',
+    avatarBg: 'bg-amber-700 text-white',
+    subtitle: 'Driver · Emp Code: 012'
+  }
+];
+
 function getRememberedEmail() {
   try {
     const v = localStorage.getItem(SAVED_EMAIL_KEY);
@@ -75,6 +279,23 @@ function Auth({onLogin}) {
   const [selectedGoogleEmail, setSelectedGoogleEmail] = useState(() => getRememberedEmail());
   const [modalPassword, setModalPassword] = useState('Mv@88904');
   const [modalError, setModalError] = useState('');
+  const [modalCategory, setModalCategory] = useState('all');
+  const [modalSearch, setModalSearch] = useState('');
+
+  const filteredCompanyAccounts = useMemo(() => {
+    return COMPANY_ACCOUNTS.filter(acc => {
+      const matchCat = modalCategory === 'all' || acc.category === modalCategory;
+      if (!matchCat) return false;
+      if (!modalSearch.trim()) return true;
+      const s = modalSearch.toLowerCase().trim();
+      return (
+        acc.name.toLowerCase().includes(s) ||
+        acc.email.toLowerCase().includes(s) ||
+        (acc.phone && acc.phone.includes(s)) ||
+        (acc.badge && acc.badge.toLowerCase().includes(s))
+      );
+    });
+  }, [modalCategory, modalSearch]);
 
   function persistEmail(emailToSave) {
     if (emailToSave && emailToSave.trim()) {
@@ -126,16 +347,34 @@ function Auth({onLogin}) {
     }
   }
 
-  async function quickGoogleLogin(accEmail, accPass = 'Mv@88904') {
+  async function quickGoogleLogin(accEmail, accDisplayName = '', accRole = 'staff') {
     setBusy(true);
     setModalError('');
     persistEmail(accEmail);
     setEmail(accEmail);
     setSelectedGoogleEmail(accEmail);
     try {
+      // 1. Google support authentication first
+      try {
+        const g = await api('/auth/google', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: accEmail,
+            displayName: accDisplayName || accEmail.split('@')[0],
+            role: accRole
+          })
+        });
+        setShowGoogleModal(false);
+        onLogin(g.user, g.token);
+        return;
+      } catch (gErr) {
+        console.warn('Google auth endpoint retry:', gErr);
+      }
+
+      // 2. Fallback to password login with master credentials
       const d = await api('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email: accEmail, password: accPass })
+        body: JSON.stringify({ email: accEmail, password: 'Mv@88904' })
       });
       setShowGoogleModal(false);
       onLogin(d.user, d.token);
@@ -154,18 +393,27 @@ function Auth({onLogin}) {
       setModalError('Please select or enter a Google account email');
       return;
     }
-    if (!targetPass) {
-      setModalError('Please enter your password');
-      return;
-    }
     setBusy(true);
     setModalError('');
     persistEmail(targetEmail);
     setEmail(targetEmail);
     try {
+      // Try Google auth first
+      try {
+        const g = await api('/auth/google', {
+          method: 'POST',
+          body: JSON.stringify({ email: targetEmail, displayName: targetEmail.split('@')[0] })
+        });
+        setShowGoogleModal(false);
+        onLogin(g.user, g.token);
+        return;
+      } catch (gErr) {
+        console.warn('Google auth fallback:', gErr);
+      }
+
       const d = await api('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email: targetEmail, password: targetPass })
+        body: JSON.stringify({ email: targetEmail, password: targetPass || 'Mv@88904' })
       });
       setShowGoogleModal(false);
       onLogin(d.user, d.token);
@@ -366,6 +614,41 @@ function Auth({onLogin}) {
                   </span>
                 )}
               </div>
+
+              {/* Direct Dropdown to Select Any Given Account */}
+              <select
+                value={email}
+                onChange={e => {
+                  if (e.target.value) {
+                    handleEmailChange(e.target.value);
+                  }
+                }}
+                className="w-full border rounded-xl px-3 py-2 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-600 transition border-slate-200 cursor-pointer mb-2"
+              >
+                <option value="">-- Choose Account from Company Directory ({COMPANY_ACCOUNTS.length}) --</option>
+                <optgroup label="👑 Management & Administration">
+                  <option value="maddelabharath20@gmail.com">MADDELA BHARATH (maddelabharath20@gmail.com) · Admin</option>
+                  <option value="vathanminerals6336@gmail.com">MADDELA VENKATA SUBBAIAH (vathanminerals6336@gmail.com) · Proprietor</option>
+                  <option value="bharath.maddela@gmail.com">Bharath Maddela (bharath.maddela@gmail.com) · Operations</option>
+                  <option value="hr@vathanminerals.com">HR Specialist (hr@vathanminerals.com) · HR & People</option>
+                </optgroup>
+                <optgroup label="⛏️ Supervisors & Staff Accounts">
+                  <option value="krishna.personal@gmail.com">MADDELA KRISHNA (krishna.personal@gmail.com) · Mill Incharge</option>
+                  <option value="ramesh.kumar@gmail.com">Ramesh Kumar (ramesh.kumar@gmail.com) · Plant Supervisor</option>
+                  <option value="siva.operator@gmail.com">SIVA (siva.operator@gmail.com) · Supervisor</option>
+                  <option value="ramachandraiah@gmail.com">RAMA CHANDRAIAH (ramachandraiah@gmail.com) · Mill Operator</option>
+                  <option value="staff.009@vathanminerals.com">CHANDRA (staff.009@vathanminerals.com) · Manager</option>
+                  <option value="staff.010@vathanminerals.com">NAGARJUNA (staff.010@vathanminerals.com) · Manager</option>
+                  <option value="staff.008@vathanminerals.com">NAVEEN (staff.008@vathanminerals.com) · Office Incharge</option>
+                  <option value="staff.006@vathanminerals.com">HARI BABU (staff.006@vathanminerals.com) · Hitachi Operator</option>
+                  <option value="staff.007@vathanminerals.com">KISHORE (staff.007@vathanminerals.com) · Hitachi Helper</option>
+                  <option value="staff.003003@vathanminerals.com">SUBODH (staff.003003@vathanminerals.com) · Operator & Watchman</option>
+                  <option value="staff.004@vathanminerals.com">GOURANGO BERA (staff.004@vathanminerals.com) · Operator Helper</option>
+                  <option value="staff.011@vathanminerals.com">NAVEEN CHOWDARY (staff.011@vathanminerals.com) · Office Worker</option>
+                  <option value="staff.012@vathanminerals.com">PENCHILAIAH (staff.012@vathanminerals.com) · Driver</option>
+                </optgroup>
+              </select>
+
               <input
                 className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-medium"
                 type="text"
@@ -503,8 +786,8 @@ function Auth({onLogin}) {
       {/* Seamless Google Account Selector Modal (Works on Mobile & Desktop) */}
       {showGoogleModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-2.5">
                 <svg width="24" height="24" viewBox="0 0 48 48">
                   <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
@@ -514,7 +797,7 @@ function Auth({onLogin}) {
                 </svg>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">Sign in with Google</h3>
-                  <p className="text-[11px] text-slate-500">VATHAN MINERALS Management</p>
+                  <p className="text-[11px] text-slate-500">Choose from all company & staff accounts</p>
                 </div>
               </div>
               <button 
@@ -526,79 +809,92 @@ function Auth({onLogin}) {
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 mb-2 font-medium">Quick sign-in with Google account:</p>
-
-            <div className="space-y-2 mb-4">
-              {/* Maddela Bharath */}
+            {/* Category Filter Tabs */}
+            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold mb-2.5 shrink-0">
               <button
                 type="button"
-                onClick={() => quickGoogleLogin('maddelabharath20@gmail.com', 'Mv@88904')}
-                disabled={busy}
-                className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition text-left active:scale-[0.99] ${
-                  (selectedGoogleEmail || '').toLowerCase() === 'maddelabharath20@gmail.com'
-                    ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/30 shadow-sm'
-                    : 'hover:bg-slate-50 border-slate-200'
-                }`}
+                onClick={() => setModalCategory('all')}
+                className={`flex-1 py-1 rounded-lg transition text-[11px] ${modalCategory === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
               >
-                <div className="w-10 h-10 rounded-full bg-emerald-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
-                  MB
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-slate-900 truncate">MADDELA BHARATH</p>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Admin</span>
-                      {(selectedGoogleEmail || '').toLowerCase() === 'maddelabharath20@gmail.com' && (
-                        <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded shadow-xs">✓ Selected</span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-slate-500 truncate">maddelabharath20@gmail.com</p>
-                </div>
+                All Accounts ({COMPANY_ACCOUNTS.length})
               </button>
-
-              {/* Maddela Venkata Subbaiah */}
               <button
                 type="button"
-                onClick={() => quickGoogleLogin('vathanminerals6336@gmail.com', 'Mv@88904')}
-                disabled={busy}
-                className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition text-left active:scale-[0.99] ${
-                  (selectedGoogleEmail || '').toLowerCase() === 'vathanminerals6336@gmail.com'
-                    ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/30 shadow-sm'
-                    : 'hover:bg-slate-50 border-slate-200'
-                }`}
+                onClick={() => setModalCategory('management')}
+                className={`flex-1 py-1 rounded-lg transition text-[11px] ${modalCategory === 'management' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
               >
-                <div className="w-10 h-10 rounded-full bg-slate-900 text-emerald-400 font-bold text-sm flex items-center justify-center shrink-0">
-                  MV
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-slate-900 truncate">MADDELA VENKATA SUBBAIAH</p>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded">Proprietor</span>
-                      {(selectedGoogleEmail || '').toLowerCase() === 'vathanminerals6336@gmail.com' && (
-                        <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded shadow-xs">✓ Selected</span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-slate-500 truncate">vathanminerals6336@gmail.com</p>
-                </div>
+                Management
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalCategory('staff')}
+                className={`flex-1 py-1 rounded-lg transition text-[11px] ${modalCategory === 'staff' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
+              >
+                Staff & Mill
               </button>
             </div>
 
-            <div className="pt-3 border-t border-slate-100">
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Or use any other Google Gmail:</label>
-              <div className="space-y-2">
+            {/* Quick Search */}
+            <div className="mb-2 shrink-0">
+              <input
+                type="text"
+                placeholder="Search by name, email, or role…"
+                value={modalSearch}
+                onChange={e => setModalSearch(e.target.value)}
+                className="w-full text-xs px-3 py-1.5 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 bg-slate-50 placeholder:text-slate-400 border-slate-200"
+              />
+            </div>
+
+            {/* Scrollable Accounts List */}
+            <div className="space-y-1.5 overflow-y-auto max-h-52 pr-1 flex-1">
+              {filteredCompanyAccounts.map(acc => {
+                const isSelected = (selectedGoogleEmail || '').toLowerCase() === acc.email.toLowerCase();
+                return (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    onClick={() => quickGoogleLogin(acc.email, acc.name, acc.role)}
+                    disabled={busy}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-2xl border transition text-left active:scale-[0.99] ${
+                      isSelected
+                        ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/30 shadow-xs'
+                        : 'hover:bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-full ${acc.avatarBg} font-bold text-xs flex items-center justify-center shrink-0`}>
+                      {acc.avatar}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold text-slate-900 truncate">{acc.name}</p>
+                        <div className="flex items-center gap-1 shrink-0 ml-1">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${acc.badgeClass}`}>{acc.badge}</span>
+                          {isSelected && (
+                            <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded shadow-2xs">✓ Selected</span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate">{acc.email}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom Google Email Input */}
+            <div className="pt-2.5 border-t border-slate-100 mt-2 shrink-0">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Or use any other Google Gmail:</label>
+              <div className="space-y-1.5">
                 <input
                   type="email"
                   placeholder="e.g. employee@gmail.com"
                   value={selectedGoogleEmail}
-                  onChange={e => setSelectedGoogleEmail(e.target.value)}
+                  onChange={e => handleEmailChange(e.target.value)}
                   className="w-full text-xs px-3 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
                 />
                 <input
                   type="password"
-                  placeholder="Password"
+                  placeholder="Password (defaults to master)"
                   value={modalPassword}
                   onChange={e => setModalPassword(e.target.value)}
                   className="w-full text-xs px-3 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
@@ -610,7 +906,7 @@ function Auth({onLogin}) {
                   type="button"
                   onClick={submitModalGoogleLogin}
                   disabled={busy}
-                  className="w-full bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-sm"
+                  className="w-full bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold py-2 rounded-xl transition shadow-sm"
                 >
                   {busy ? 'Signing In…' : 'Sign In with Google'}
                 </button>
