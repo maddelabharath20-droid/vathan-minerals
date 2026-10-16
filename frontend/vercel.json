@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://hospitals-knowledge-bryan-ever.trycloudflare.com/api/:path*"
+      "destination": "https://barely-jacob-yen-york.trycloudflare.com/api/:path*"
     },
     {
       "source": "/((?!assets/|.*\\..*).*)",
