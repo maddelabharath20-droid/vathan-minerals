@@ -274,8 +274,6 @@ function Auth({onLogin}) {
 
   const [showMobile3D, setShowMobile3D] = useState(false);
 
-  const googleBtnContainerRef = useRef(null);
-
   // Initialize Google Identity Services (GSI) to connect with Chrome Google accounts
   useEffect(() => {
     function initGIS() {
@@ -287,18 +285,6 @@ function Auth({onLogin}) {
             auto_select: false,
             cancel_on_tap_outside: true,
           });
-
-          if (googleBtnContainerRef.current) {
-            window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
-              theme: 'outline',
-              size: 'large',
-              type: 'standard',
-              text: 'signin_with',
-              shape: 'rectangular',
-              logo_alignment: 'left',
-              width: 320
-            });
-          }
 
           // Trigger native Chrome One Tap popup for signed-in Chrome accounts
           window.google.accounts.id.prompt();
@@ -579,16 +565,16 @@ function Auth({onLogin}) {
             {/* Email or Mobile Number */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Google Account (Gmail) or Mobile Number</label>
+                <label className="block text-xs font-semibold text-slate-700">Email or Phone Number</label>
                 {email && (
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Keep Existing Selected
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Selected
                   </span>
                 )}
               </div>
 
-              {/* Direct Dropdown to Select Any Given Account */}
+              {/* Company Directory Dropdown to Select Any Existing Account */}
               <select
                 value={email}
                 onChange={e => {
@@ -598,27 +584,20 @@ function Auth({onLogin}) {
                 }}
                 className="w-full border rounded-xl px-3 py-2 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-600 transition border-slate-200 cursor-pointer mb-2"
               >
-                <option value="">-- Choose Account from Company Directory ({COMPANY_ACCOUNTS.length}) --</option>
+                <option value="">-- Select from Existing All Emails ({COMPANY_ACCOUNTS.length}) --</option>
                 <optgroup label="👑 Management & Administration">
-                  <option value="maddelabharath20@gmail.com">MADDELA BHARATH (maddelabharath20@gmail.com) · Admin</option>
-                  <option value="vathanminerals6336@gmail.com">MADDELA VENKATA SUBBAIAH (vathanminerals6336@gmail.com) · Proprietor</option>
-                  <option value="bharath.maddela@gmail.com">Bharath Maddela (bharath.maddela@gmail.com) · Operations</option>
-                  <option value="hr@vathanminerals.com">HR Specialist (hr@vathanminerals.com) · HR & People</option>
+                  {COMPANY_ACCOUNTS.filter(a => a.category === 'management').map(a => (
+                    <option key={a.email} value={a.email}>
+                      {a.name} ({a.email}) · {a.badge}
+                    </option>
+                  ))}
                 </optgroup>
                 <optgroup label="⛏️ Supervisors & Staff Accounts">
-                  <option value="krishna.personal@gmail.com">MADDELA KRISHNA (krishna.personal@gmail.com) · Mill Incharge</option>
-                  <option value="ramesh.kumar@gmail.com">Ramesh Kumar (ramesh.kumar@gmail.com) · Plant Supervisor</option>
-                  <option value="siva.operator@gmail.com">SIVA (siva.operator@gmail.com) · Supervisor</option>
-                  <option value="ramachandraiah@gmail.com">RAMA CHANDRAIAH (ramachandraiah@gmail.com) · Mill Operator</option>
-                  <option value="staff.009@vathanminerals.com">CHANDRA (staff.009@vathanminerals.com) · Manager</option>
-                  <option value="staff.010@vathanminerals.com">NAGARJUNA (staff.010@vathanminerals.com) · Manager</option>
-                  <option value="staff.008@vathanminerals.com">NAVEEN (staff.008@vathanminerals.com) · Office Incharge</option>
-                  <option value="staff.006@vathanminerals.com">HARI BABU (staff.006@vathanminerals.com) · Hitachi Operator</option>
-                  <option value="staff.007@vathanminerals.com">KISHORE (staff.007@vathanminerals.com) · Hitachi Helper</option>
-                  <option value="staff.003003@vathanminerals.com">SUBODH (staff.003003@vathanminerals.com) · Operator & Watchman</option>
-                  <option value="staff.004@vathanminerals.com">GOURANGO BERA (staff.004@vathanminerals.com) · Operator Helper</option>
-                  <option value="staff.011@vathanminerals.com">NAVEEN CHOWDARY (staff.011@vathanminerals.com) · Office Worker</option>
-                  <option value="staff.012@vathanminerals.com">PENCHILAIAH (staff.012@vathanminerals.com) · Driver</option>
+                  {COMPANY_ACCOUNTS.filter(a => a.category === 'staff').map(a => (
+                    <option key={a.email} value={a.email}>
+                      {a.name} ({a.email}) · {a.badge}
+                    </option>
+                  ))}
                 </optgroup>
               </select>
 
@@ -706,26 +685,21 @@ function Auth({onLogin}) {
               <div className="flex-1 h-px bg-slate-200" />
             </div>
 
-            {/* Google Sign-In with Chrome Accounts Section */}
-            <div className="space-y-2">
-              {/* Google Identity Services official rendered button */}
-              <div ref={googleBtnContainerRef} className="flex justify-center min-h-[44px]" />
-
-              <button
-                type="button"
-                disabled={busy}
-                onClick={handleGoogleSignIn}
-                className="w-full flex items-center justify-center gap-3 border border-slate-300 hover:border-emerald-500 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 transition shadow-xs disabled:opacity-60 active:scale-[0.99]"
-              >
-                <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
-                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
-                  <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
-                  <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
-                </svg>
-                <span>{busy ? 'Connecting to Chrome…' : 'Sign in with Google Account'}</span>
-              </button>
-            </div>
+            {/* Single Sign in with Google Button */}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleGoogleSignIn}
+              className="w-full flex items-center justify-center gap-3 border border-slate-300 hover:border-emerald-500 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 transition shadow-xs disabled:opacity-60 active:scale-[0.99]"
+            >
+              <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+                <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
+                <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
+              </svg>
+              <span>{busy ? 'Signing in with Google…' : 'Sign in with Google'}</span>
+            </button>
 
             <div className="flex items-center justify-center gap-1.5 mt-5 text-[11px] text-slate-500 font-medium">
               <ShieldCheck size={13} className="text-emerald-600" />
