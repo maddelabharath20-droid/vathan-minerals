@@ -9,6 +9,7 @@ frontend/node_modules/
 backend/.env
 frontend/.env
 *.env
+.agents/mcp_config.json
 
 # Build outputs
 frontend/dist/
@@ -25,5 +26,4 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
-.agents/
 cloudflared.exe

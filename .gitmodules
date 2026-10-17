@@ -1,0 +1,6 @@
+[submodule ".agents/vendor/agency-agents"]
+	path = .agents/vendor/agency-agents
+	url = https://github.com/msitarzewski/agency-agents.git
+[submodule ".agents/vendor/ecc"]
+	path = .agents/vendor/ecc
+	url = https://github.com/affaan-m/ecc.git
