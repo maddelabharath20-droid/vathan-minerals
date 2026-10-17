@@ -3,6 +3,7 @@
 Welcome to the **VATHAN MINERALS** operational platform. This repository is configured with:
 1. **[Agency Agents](https://github.com/msitarzewski/agency-agents)**: Specialized AI personas for architectural design, frontend craft, backend robustness, and reality-checking.
 2. **[ECC (Everything Claude Code / Agent Harness Performance Optimization System)](https://github.com/affaan-m/ecc)**: Systematic verification loops, test-driven bug fixes, security gates, and context optimization.
+3. **[Awesome Agents (kyrolabs)](https://github.com/kyrolabs/awesome-agents)** (`https://git.mitgai.net/kyrolabs/awesome-agents`): Industry-wide reference directory of AI agent frameworks, memory architectures, evaluation suites, and multi-agent coordination runtimes.
 
 ---
 

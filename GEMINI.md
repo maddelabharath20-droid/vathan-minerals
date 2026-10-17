@@ -3,12 +3,12 @@
 ## Identity & Context
 - **Organization**: VATHAN MINERALS - MINING
 - **Proprietor**: MADDELA VENKATA SUBBAIAH (Rly Kodur, Andhra Pradesh)
-- **Harness Systems Connected**: `msitarzewski/agency-agents` & `affaan-m/ecc`
+- **Harness Systems Connected**: `msitarzewski/agency-agents`, `affaan-m/ecc`, & `kyrolabs/awesome-agents`
 
 ## Core Workflow Standards
 1. **Always Verify Endpoints**:
    - Backend runs on `http://localhost:4000`.
-   - Cloudflare tunnel connects to `https://meetup-suspension-mary-entrance.trycloudflare.com`.
+   - Cloudflare tunnel connects to active tunnel (currently `https://inbox-toll-mid-opportunity.trycloudflare.com`).
    - Frontend is deployed on Vercel at `https://vathan-minerals.vercel.app/`.
 2. **Surgical Precision**:
    - Touch only necessary lines.

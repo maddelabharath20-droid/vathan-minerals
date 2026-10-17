@@ -4,3 +4,6 @@
 [submodule ".agents/vendor/ecc"]
 	path = .agents/vendor/ecc
 	url = https://github.com/affaan-m/ecc.git
+[submodule ".agents/vendor/awesome-agents"]
+	path = .agents/vendor/awesome-agents
+	url = https://github.com/kyrolabs/awesome-agents.git
