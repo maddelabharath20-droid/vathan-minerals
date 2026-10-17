@@ -125,69 +125,6 @@ function Auth({onLogin}) {
     return () => { mounted = false; };
   }, []);
 
-  // Initialize Google Identity Services (GSI)
-  useEffect(() => {
-    function initGIS() {
-      if (window.google?.accounts?.id) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: handleGoogleCredentialResponse,
-            auto_select: false,
-            cancel_on_tap_outside: true,
-          });
-
-          // Render official Google button if container is mounted
-          const el = document.getElementById('googleSignInBtnContainer');
-          if (el) {
-            window.google.accounts.id.renderButton(el, {
-              type: 'standard',
-              theme: 'outline',
-              size: 'large',
-              width: 320,
-              text: 'signin_with',
-              shape: 'rectangular',
-              logo_alignment: 'left'
-            });
-          }
-        } catch (e) {
-          console.warn('Google Identity Services notice:', e);
-        }
-      }
-    }
-
-    initGIS();
-    const timer = setTimeout(initGIS, 600);
-    const timer2 = setTimeout(initGIS, 1800);
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(timer2);
-    };
-  }, [loginTab]);
-
-  async function handleGoogleCredentialResponse(response) {
-    if (!response || !response.credential) return;
-    setBusy(true);
-    setError('');
-    try {
-      const d = await api('/auth/google', {
-        method: 'POST',
-        body: JSON.stringify({
-          credential: response.credential,
-          role: 'admin'
-        })
-      });
-      if (d && d.token) {
-        if (d.user?.email) persistEmail(d.user.email);
-        onLogin(d.user, d.token);
-      }
-    } catch (err) {
-      setError(err.message || 'Google account verification failed.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function persistEmail(emailToSave) {
     if (emailToSave && emailToSave.trim()) {
       try {
@@ -203,7 +140,7 @@ function Auth({onLogin}) {
     }
   }
 
-  async function handleGoogleSignIn() {
+  async function handleGoogleSignIn(targetRole = 'admin') {
     setError('');
     setBusy(true);
     try {
@@ -211,6 +148,7 @@ function Auth({onLogin}) {
       const res = await tryGooglePopup();
       if (res.success && res.user?.idToken) {
         if (res.user.email) persistEmail(res.user.email);
+        const codeToPass = targetRole === 'staff' ? (staffCode || selectedStaff?.code || '') : undefined;
         const d = await api('/auth/google', {
           method: 'POST',
           body: JSON.stringify({
@@ -218,25 +156,30 @@ function Auth({onLogin}) {
             email: res.user.email,
             displayName: res.user.displayName,
             uid: res.user.uid,
-            role: 'admin'
+            role: targetRole,
+            employeeCode: codeToPass
           })
         });
         if (d && d.token) {
           onLogin(d.user, d.token);
           return;
         }
+        if (d && d.requiresLink) {
+          setError(d.message || 'Please tap your name or enter your Employee Code above to link your Google account.');
+          return;
+        }
       } else if (res.error) {
         const code = res.error.code || '';
         if (code === 'auth/popup-closed-by-user') {
-          setError('Google Sign-In popup was closed. Please tap "Sign in with Google" again or sign in with your email/phone and password below.');
+          setError('Google Sign-In popup was closed. Please tap "Sign in with Google" again or sign in with password.');
           return;
         }
         if (code === 'auth/popup-blocked') {
-          setError('Popup was blocked by your browser. Please allow popups for vathan-minerals.vercel.app or sign in below with password.');
+          setError('Popup was blocked by your browser. Please allow popups for vathan-minerals.vercel.app.');
           return;
         }
         if (code === 'auth/unauthorized-domain') {
-          setError('Google Sign-In: Domain authorization in progress. Please sign in below using your email and password.');
+          setError('Google Sign-In: Domain authorization in progress. Please sign in below using your credentials.');
           return;
         }
         setError(res.error.message || 'Google Sign-In failed. Please try again or use password login.');
@@ -584,14 +527,11 @@ function Auth({onLogin}) {
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
 
-              {/* Official Google Identity Services Button Container */}
-              <div id="googleSignInBtnContainer" className="w-full flex justify-center mb-2 empty:hidden"></div>
-
               {/* Single Sign in with Google Button */}
               <button
                 type="button"
                 disabled={busy}
-                onClick={handleGoogleSignIn}
+                onClick={() => handleGoogleSignIn('admin')}
                 className="w-full flex items-center justify-center gap-3 border border-slate-300 hover:border-emerald-500 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 transition shadow-xs disabled:opacity-60 active:scale-[0.99]"
               >
                 <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -755,6 +695,29 @@ function Auth({onLogin}) {
                     <ArrowRight size={16} />
                   </>
                 )}
+              </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-xs text-slate-400 font-medium">or continue with</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+
+              {/* Single Sign in with Google Button for Staff */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => handleGoogleSignIn('staff')}
+                className="w-full flex items-center justify-center gap-3 border border-slate-300 hover:border-emerald-500 rounded-xl py-2.5 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 transition shadow-xs disabled:opacity-60 active:scale-[0.99]"
+              >
+                <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.4 30.1 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.8 6.1C12.5 13.2 17.8 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+                  <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
+                  <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
+                </svg>
+                <span>{busy ? 'Connecting to Google…' : 'Sign in with Google (Staff Portal)'}</span>
               </button>
 
               <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
