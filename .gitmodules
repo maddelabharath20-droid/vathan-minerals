@@ -7,3 +7,6 @@
 [submodule ".agents/vendor/awesome-agents"]
 	path = .agents/vendor/awesome-agents
 	url = https://github.com/kyrolabs/awesome-agents.git
+[submodule ".agents/vendor/i-have-adhd"]
+	path = .agents/vendor/i-have-adhd
+	url = https://github.com/ayghri/i-have-adhd.git

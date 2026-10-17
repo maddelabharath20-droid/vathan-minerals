@@ -4,6 +4,7 @@ Welcome to the **VATHAN MINERALS** operational platform. This repository is conf
 1. **[Agency Agents](https://github.com/msitarzewski/agency-agents)**: Specialized AI personas for architectural design, frontend craft, backend robustness, and reality-checking.
 2. **[ECC (Everything Claude Code / Agent Harness Performance Optimization System)](https://github.com/affaan-m/ecc)**: Systematic verification loops, test-driven bug fixes, security gates, and context optimization.
 3. **[Awesome Agents (kyrolabs)](https://github.com/kyrolabs/awesome-agents)** (`https://git.mitgai.net/kyrolabs/awesome-agents`): Industry-wide reference directory of AI agent frameworks, memory architectures, evaluation suites, and multi-agent coordination runtimes.
+4. **[i-have-adhd (ayghri)](https://github.com/ayghri/i-have-adhd)**: Output shaping and cognition harness that leads with the next action, suppresses tangents, numbers multi-step tasks, and presents high-dopamine, visible wins.
 
 ---
 
@@ -38,6 +39,9 @@ Welcome to the **VATHAN MINERALS** operational platform. This repository is conf
 * **`agency-appsec-engineer`**: Application security, session management, CSRF/XSS prevention, zero-trust endpoint checks.
 * **`agency-secrets-engineer`**: Prevents hardcoded credentials, validates `.env` usage, inspects git diffs for token leaks.
 * **`delivery-gate`**: Pre-commit checklist ensuring clean builds, active tunnel health, and passing endpoints.
+
+### 4. Cognition & Output Optimization (ayghri)
+* **`i-have-adhd`**: Action-first formatting, numbered multi-step execution paths, explicit time estimates, and visible wins.
 
 ---
 

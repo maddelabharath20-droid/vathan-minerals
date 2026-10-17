@@ -3,7 +3,7 @@
 ## Identity & Context
 - **Organization**: VATHAN MINERALS - MINING
 - **Proprietor**: MADDELA VENKATA SUBBAIAH (Rly Kodur, Andhra Pradesh)
-- **Harness Systems Connected**: `msitarzewski/agency-agents`, `affaan-m/ecc`, & `kyrolabs/awesome-agents`
+- **Harness Systems Connected**: `msitarzewski/agency-agents`, `affaan-m/ecc`, `kyrolabs/awesome-agents`, & `ayghri/i-have-adhd`
 
 ## Core Workflow Standards
 1. **Always Verify Endpoints**:
