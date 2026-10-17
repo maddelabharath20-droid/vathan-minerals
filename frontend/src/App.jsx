@@ -125,7 +125,7 @@ function Auth({onLogin}) {
     return () => { mounted = false; };
   }, []);
 
-  // Initialize Google Identity Services (GSI) to connect with Chrome Google accounts
+  // Initialize Google Identity Services (GSI)
   useEffect(() => {
     function initGIS() {
       if (window.google?.accounts?.id) {
@@ -137,8 +137,19 @@ function Auth({onLogin}) {
             cancel_on_tap_outside: true,
           });
 
-          // Trigger native Chrome One Tap popup for signed-in Chrome accounts
-          window.google.accounts.id.prompt();
+          // Render official Google button if container is mounted
+          const el = document.getElementById('googleSignInBtnContainer');
+          if (el) {
+            window.google.accounts.id.renderButton(el, {
+              type: 'standard',
+              theme: 'outline',
+              size: 'large',
+              width: 320,
+              text: 'signin_with',
+              shape: 'rectangular',
+              logo_alignment: 'left'
+            });
+          }
         } catch (e) {
           console.warn('Google Identity Services notice:', e);
         }
@@ -146,9 +157,13 @@ function Auth({onLogin}) {
     }
 
     initGIS();
-    const timer = setTimeout(initGIS, 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    const timer = setTimeout(initGIS, 600);
+    const timer2 = setTimeout(initGIS, 1800);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(timer2);
+    };
+  }, [loginTab]);
 
   async function handleGoogleCredentialResponse(response) {
     if (!response || !response.credential) return;
@@ -192,14 +207,7 @@ function Auth({onLogin}) {
     setError('');
     setBusy(true);
     try {
-      // 1. First trigger Google Identity Services prompt if available
-      if (window.google?.accounts?.id) {
-        try {
-          window.google.accounts.id.prompt();
-        } catch {}
-      }
-
-      // 2. Launch Google popup connecting to Chrome accounts
+      // Direct Firebase Google Popup (never call prompt() concurrently!)
       const res = await tryGooglePopup();
       if (res.success && res.user?.idToken) {
         if (res.user.email) persistEmail(res.user.email);
@@ -219,16 +227,16 @@ function Auth({onLogin}) {
         }
       } else if (res.error) {
         const code = res.error.code || '';
-        if (code === 'auth/popup-closed-by-user' || code === 'auth/popup-blocked') {
-          setError('Opening Google Sign-In redirect directly...');
-          const redRes = await tryGoogleRedirect();
-          if (!redRes.success) {
-            setError('Google redirect could not be started. Please sign in below using your password.');
-          }
+        if (code === 'auth/popup-closed-by-user') {
+          setError('Google Sign-In popup was closed. Please tap "Sign in with Google" again or sign in with your email/phone and password below.');
+          return;
+        }
+        if (code === 'auth/popup-blocked') {
+          setError('Popup was blocked by your browser. Please allow popups for vathan-minerals.vercel.app or sign in below with password.');
           return;
         }
         if (code === 'auth/unauthorized-domain') {
-          setError('Google Sign-In: Domain vathan-minerals.vercel.app needs to be added in Firebase Console, or sign in below with password.');
+          setError('Google Sign-In: Domain authorization in progress. Please sign in below using your email and password.');
           return;
         }
         setError(res.error.message || 'Google Sign-In failed. Please try again or use password login.');
@@ -576,6 +584,9 @@ function Auth({onLogin}) {
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
 
+              {/* Official Google Identity Services Button Container */}
+              <div id="googleSignInBtnContainer" className="w-full flex justify-center mb-2 empty:hidden"></div>
+
               {/* Single Sign in with Google Button */}
               <button
                 type="button"
@@ -589,7 +600,7 @@ function Auth({onLogin}) {
                   <path fill="#FBBC05" d="M10.6 28.4A14.7 14.7 0 0 1 9.5 24c0-1.5.2-3 .6-4.4L2.3 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.5l8.2-6.1z"/>
                   <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
                 </svg>
-                <span>{busy ? 'Signing in with Google…' : 'Sign in with Google'}</span>
+                <span>{busy ? 'Connecting to Google…' : 'Sign in with Google'}</span>
               </button>
 
               <div className="flex items-center justify-center gap-1.5 mt-5 text-[11px] text-slate-500 font-medium">
