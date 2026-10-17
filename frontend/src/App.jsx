@@ -101,6 +101,11 @@ function Auth({onLogin}) {
         if (res && res.success && res.user?.idToken && mounted) {
           setBusy(true);
           if (res.user.email) persistEmail(res.user.email);
+          const savedRole = sessionStorage.getItem('pending_google_auth_role') || 'admin';
+          const savedCode = sessionStorage.getItem('pending_google_auth_code') || undefined;
+          sessionStorage.removeItem('pending_google_auth_role');
+          sessionStorage.removeItem('pending_google_auth_code');
+
           const d = await api('/auth/google', {
             method: 'POST',
             body: JSON.stringify({
@@ -108,11 +113,16 @@ function Auth({onLogin}) {
               email: res.user.email,
               displayName: res.user.displayName,
               uid: res.user.uid,
-              role: 'admin'
+              role: savedRole,
+              employeeCode: savedCode
             })
           });
           if (d && d.token && mounted) {
             onLogin(d.user, d.token);
+            return;
+          }
+          if (d && d.requiresLink && mounted) {
+            setError(d.message || 'Please tap your name or enter your Employee Code above to link your Google account.');
           }
         }
       } catch (err) {
@@ -144,11 +154,11 @@ function Auth({onLogin}) {
     setError('');
     setBusy(true);
     try {
-      // Direct Firebase Google Popup (never call prompt() concurrently!)
+      const codeToPass = targetRole === 'staff' ? (staffCode || selectedStaff?.code || '') : undefined;
+      // 1. Attempt Google Popup first for instantaneous login
       const res = await tryGooglePopup();
       if (res.success && res.user?.idToken) {
         if (res.user.email) persistEmail(res.user.email);
-        const codeToPass = targetRole === 'staff' ? (staffCode || selectedStaff?.code || '') : undefined;
         const d = await api('/auth/google', {
           method: 'POST',
           body: JSON.stringify({
@@ -175,11 +185,19 @@ function Auth({onLogin}) {
           return;
         }
         if (code === 'auth/popup-blocked') {
-          setError('Popup was blocked by your browser. Please allow popups for vathan-minerals.vercel.app.');
-          return;
+          // 2. Seamlessly fall back to Google Redirect if browser blocks popups
+          try {
+            sessionStorage.setItem('pending_google_auth_role', targetRole);
+            if (codeToPass) sessionStorage.setItem('pending_google_auth_code', codeToPass);
+            await tryGoogleRedirect();
+            return;
+          } catch (redirErr) {
+            setError('Popup was blocked by your browser. Please allow popups for vathan-minerals.vercel.app or sign in below with password.');
+            return;
+          }
         }
         if (code === 'auth/unauthorized-domain') {
-          setError('Google Sign-In: Domain authorization in progress. Please sign in below using your credentials.');
+          setError('Google Sign-In: Domain authorization pending in Firebase Console (Authentication > Settings > Authorized domains). Please add vathan-minerals.vercel.app or sign in below with password.');
           return;
         }
         setError(res.error.message || 'Google Sign-In failed. Please try again or use password login.');

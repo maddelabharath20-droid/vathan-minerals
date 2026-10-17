@@ -276,7 +276,8 @@ app.post('/api/auth/google', asyncRoute(async (req, res) => {
         }
       } else {
         // 2. Check with Firebase Identity Toolkit endpoint
-        const fbRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyDw6Fk3TVzleL5cU7xjiZs0ixC02hxZeA8`, {
+        const fbApiKey = process.env.FIREBASE_API_KEY || 'AIzaSyDw6Fk3TVzleL5cU7xjiZs0ixC02hxZeA8';
+        const fbRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${fbApiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ idToken: tokenToVerify })
