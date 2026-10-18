@@ -1417,21 +1417,19 @@ function Reports() {
   );
   const isManagerUser = Boolean(
     user?.role === 'manager' ||
-    user?.role === 'admin' ||
-    isProp ||
     ['009', '010', 'B-001', '002', '005'].includes(user?.employee_code) ||
     user?.job_title?.toLowerCase().includes('manager') ||
     user?.job_title?.toLowerCase().includes('supervisor') ||
     user?.job_title?.toLowerCase().includes('incharge')
   );
-  const isManagerOnly = isManagerUser && !isProp && user?.role !== 'admin';
+  const isManagerOnly = !isProp && (isManagerUser || user?.role === 'manager');
   const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : user.name;
   
   useEffect(() => {
-    if (isManagerOnly && active !== 'Attendance' && active !== 'Mantra Device') {
+    if (!isProp && active !== 'Attendance' && active !== 'Mantra Device') {
       setActive('Attendance');
     }
-  }, [isManagerOnly, active]);
+  }, [isProp, active]);
 
   if (user.role === 'staff' && !isProp && !isManagerUser) {
     return <StaffPortal user={user} onLogout={logout} />;
@@ -1441,11 +1439,11 @@ function Reports() {
     return <StaffPortal user={user} onLogout={logout} onBack={() => setViewMode('dashboard')} />;
   }
 
-  const visibleNav = isManagerOnly 
-    ? nav.filter(([label]) => label === 'Attendance' || label === 'Mantra Device')
-    : nav;
+  const visibleNav = isProp 
+    ? nav 
+    : nav.filter(([label]) => label === 'Attendance' || label === 'Mantra Device');
 
-  const currentActiveTitle = isManagerOnly 
+  const currentActiveTitle = !isProp 
     ? (active === 'Mantra Device' ? 'Mantra Device' : 'Attendance') 
     : active;
 
@@ -1561,7 +1559,7 @@ function Reports() {
         </header>
 
         <div className="p-5 sm:p-8 max-w-[1600px] mx-auto">
-          {isManagerOnly ? (
+          {!isProp ? (
             active === 'Mantra Device' ? (
               <AttendanceManager user={user} initialTab="fingerprint"/>
             ) : (

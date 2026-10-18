@@ -4,8 +4,7 @@
   "description": "VATHAN MINERALS - Mining, Processing & Biometric Operations Platform",
   "private": true,
   "scripts": {
-    "postinstall": "npm install --prefix backend && npm install --prefix frontend",
-    "build": "npm run build --prefix frontend && node -e \"const fs=require('fs'); fs.cpSync('frontend/dist', 'dist', {recursive:true});\"",
+    "build": "npm run build --prefix frontend",
     "start": "node backend/src/server.js",
     "seed": "node backend/src/seedAdmin.js",
     "agents:sync": "node .agents/scripts/sync-agency.js",
