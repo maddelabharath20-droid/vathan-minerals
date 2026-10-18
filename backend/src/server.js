@@ -1,4 +1,13 @@
-import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+
+const __serverFilename = fileURLToPath(import.meta.url);
+const __serverDirname = path.dirname(__serverFilename);
+dotenv.config();
+dotenv.config({ path: path.resolve(__serverDirname, '../.env') });
+dotenv.config({ path: path.resolve(__serverDirname, '../../.env') });
+
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -15,13 +24,9 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
-import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+const frontendDist = path.resolve(__serverDirname, '../../frontend/dist');
 
 const app = express();
 app.set('trust proxy', 1);

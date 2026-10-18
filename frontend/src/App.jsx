@@ -150,12 +150,32 @@ function Auth({onLogin}) {
     }
   }
 
-  async function handleGoogleSignIn(targetRole = 'admin') {
+  async function handleGoogleSignIn(targetRole = 'admin', forceRedirect = false) {
     setError('');
     setBusy(true);
+    const codeToPass = targetRole === 'staff' ? (staffCode || selectedStaff?.code || '') : undefined;
+    const isMobile = typeof navigator !== 'undefined' && (
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      (window.innerWidth <= 768)
+    );
+
+    // 1. On mobile devices or when forced, use full-page Google Redirect (never blocked by mobile popups or tab switches)
+    if (forceRedirect || isMobile) {
+      try {
+        sessionStorage.setItem('pending_google_auth_role', targetRole);
+        if (codeToPass) sessionStorage.setItem('pending_google_auth_code', codeToPass);
+        await tryGoogleRedirect();
+        return;
+      } catch (redirErr) {
+        console.warn('Redirect error:', redirErr);
+        setError('Unable to initiate Google redirect. Please use password login or verify browser settings.');
+        setBusy(false);
+        return;
+      }
+    }
+
+    // 2. On desktop systems, try instantaneous Google Popup
     try {
-      const codeToPass = targetRole === 'staff' ? (staffCode || selectedStaff?.code || '') : undefined;
-      // 1. Attempt Google Popup first for instantaneous login
       const res = await tryGooglePopup();
       if (res.success && res.user?.idToken) {
         if (res.user.email) persistEmail(res.user.email);
@@ -180,24 +200,20 @@ function Auth({onLogin}) {
         }
       } else if (res.error) {
         const code = res.error.code || '';
-        if (code === 'auth/popup-closed-by-user') {
-          setError('Google Sign-In popup was closed. Please tap "Sign in with Google" again or sign in with password.');
-          return;
-        }
-        if (code === 'auth/popup-blocked') {
-          // 2. Seamlessly fall back to Google Redirect if browser blocks popups
+        // If popup was closed or blocked, seamlessly attempt full-page Google redirect fallback
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/popup-blocked' || code === 'auth/cancelled-popup-request') {
           try {
             sessionStorage.setItem('pending_google_auth_role', targetRole);
             if (codeToPass) sessionStorage.setItem('pending_google_auth_code', codeToPass);
             await tryGoogleRedirect();
             return;
           } catch (redirErr) {
-            setError('Popup was blocked by your browser. Please allow popups for vathan-minerals.vercel.app or sign in below with password.');
+            setError('Google popup was closed. Tap "Sign in with Google (Redirect)" below or use password login.');
             return;
           }
         }
         if (code === 'auth/unauthorized-domain') {
-          setError('Google Sign-In: Domain authorization pending in Firebase Console (Authentication > Settings > Authorized domains). Please add vathan-minerals.vercel.app or sign in below with password.');
+          setError('Google Sign-In: Domain authorization pending in Firebase Console. Please sign in below using password or PIN.');
           return;
         }
         setError(res.error.message || 'Google Sign-In failed. Please try again or use password login.');
@@ -501,7 +517,23 @@ function Auth({onLogin}) {
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-700">Password</label>
-                  {!isSignUp && <span className="text-[11px] text-slate-400">Master / Admin Password</span>}
+                  {!isSignUp ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('maddelabharath20@gmail.com');
+                        setPassword('Mv@88904');
+                        setError('');
+                      }}
+                      className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold hover:underline flex items-center gap-1"
+                      title="Auto-fill admin credentials"
+                    >
+                      <Sparkles size={11} className="text-amber-500" />
+                      <span>1-Tap Fill Admin</span>
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">Master / Admin Password</span>
+                  )}
                 </div>
                 <input
                   className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold"
@@ -559,6 +591,16 @@ function Auth({onLogin}) {
                   <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
                 </svg>
                 <span>{busy ? 'Connecting to Google…' : 'Sign in with Google'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => handleGoogleSignIn('admin', true)}
+                className="w-full mt-2 text-center text-[11px] text-slate-500 hover:text-emerald-700 font-medium py-1 transition flex items-center justify-center gap-1.5"
+              >
+                <Smartphone size={12} className="text-slate-400" />
+                <span>On Mobile or Popup Blocked? Sign in via Google Redirect</span>
               </button>
 
               <div className="flex items-center justify-center gap-1.5 mt-5 text-[11px] text-slate-500 font-medium">
@@ -736,6 +778,16 @@ function Auth({onLogin}) {
                   <path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-8 6.1C6.5 42.5 14.7 48 24 48z"/>
                 </svg>
                 <span>{busy ? 'Connecting to Google…' : 'Sign in with Google (Staff Portal)'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => handleGoogleSignIn('staff', true)}
+                className="w-full mt-2 text-center text-[11px] text-slate-500 hover:text-emerald-700 font-medium py-1 transition flex items-center justify-center gap-1.5"
+              >
+                <Smartphone size={12} className="text-slate-400" />
+                <span>On Mobile or Popup Blocked? Sign in via Google Redirect</span>
               </button>
 
               <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
