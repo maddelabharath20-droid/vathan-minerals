@@ -48,6 +48,7 @@ export default function FingerprintTab({ user }) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [kioskError, setKioskError] = useState('');
+  const [selectedEmpId, setSelectedEmpId] = useState('');
 
   // Enroll modal
   const [enrollModal, setEnrollModal] = useState(false);
@@ -95,11 +96,21 @@ export default function FingerprintTab({ user }) {
     setScanResult(null);
     setKioskError('');
     try {
-      const opts = await api('/webauthn/auth-options', { method: 'POST' });
+      if (typeof window !== 'undefined' && !window.PublicKeyCredential) {
+        throw new Error('WebAuthn biometric sensors are not supported on this browser. Please open in Google Chrome, Microsoft Edge, Safari, or an Android/iOS device with biometrics enabled.');
+      }
+      const opts = await api('/webauthn/auth-options', {
+        method: 'POST',
+        body: JSON.stringify(selectedEmpId ? { employee_id: Number(selectedEmpId) } : {})
+      });
       const authResponse = await startAuthentication({ optionsJSON: opts });
       const result = await api('/webauthn/auth-verify', {
         method: 'POST',
-        body: JSON.stringify({ authResponse, date: today }),
+        body: JSON.stringify({
+          authResponse,
+          date: today,
+          employee_id: selectedEmpId ? Number(selectedEmpId) : undefined
+        }),
       });
       setScanResult(result);
       playChime(true);
@@ -107,9 +118,9 @@ export default function FingerprintTab({ user }) {
     } catch (e) {
       playChime(false);
       let msg = e.message || 'Scan failed.';
-      if (e.name === 'NotAllowedError') msg = 'Scan cancelled or fingerprint not recognised. Please try again.';
-      if (e.name === 'InvalidStateError') msg = 'No fingerprint enrolled for this device. Please enroll first.';
-      if (e.name === 'SecurityError') msg = 'Security error – please access via localhost or HTTPS.';
+      if (e.name === 'NotAllowedError') msg = 'Scan cancelled or fingerprint was not recognised. Please touch sensor again.';
+      if (e.name === 'InvalidStateError') msg = 'No enrolled fingerprint found for this sensor. Please enroll staff first.';
+      if (e.name === 'SecurityError') msg = 'Biometric security mismatch. Please use HTTPS or localhost.';
       setKioskError(msg);
     } finally {
       setScanning(false);
@@ -315,6 +326,25 @@ export default function FingerprintTab({ user }) {
                   <p className="text-slate-400 text-sm">Press the button and use your device's fingerprint sensor</p>
                 </>
               )}
+            </div>
+
+            {/* Optional Worker Selector */}
+            <div className="z-10 mb-5 w-full max-w-xs">
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 text-center">
+                Operator / Worker Filter (Optional)
+              </label>
+              <select
+                value={selectedEmpId}
+                onChange={e => setSelectedEmpId(e.target.value)}
+                className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-violet-400 outline-none text-center font-medium"
+              >
+                <option value="">⚡ Auto-Detect Any Enrolled Staff</option>
+                {employees.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.employee_code} — {e.full_name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Action button */}

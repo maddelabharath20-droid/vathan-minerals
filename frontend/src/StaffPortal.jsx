@@ -4,8 +4,28 @@ import VMLogo from './VMLogo';
 import { 
   Calendar, Clock, DollarSign, FileText, CheckCircle2, XCircle, 
   AlertCircle, Plus, RefreshCw, Printer, User, LogOut, ArrowRight,
-  TrendingUp, Sparkles, Send, ShieldCheck, Lock
+  TrendingUp, Sparkles, Send, ShieldCheck, Lock, Fingerprint, Loader2, Smartphone
 } from 'lucide-react';
+import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
+
+function playBiometricChime(success) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const g = ctx.createGain();
+    g.connect(ctx.destination);
+    const notes = success ? [523, 659, 784] : [330, 294];
+    notes.forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      o.frequency.value = freq;
+      o.type = 'sine';
+      g.gain.setValueAtTime(0.18, ctx.currentTime + i * 0.15);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.3);
+      o.connect(g);
+      o.start(ctx.currentTime + i * 0.15);
+      o.stop(ctx.currentTime + i * 0.15 + 0.35);
+    });
+  } catch (_) {}
+}
 
 export default function StaffPortal({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('overview'); // overview, attendance, leaves, salary
@@ -14,6 +34,13 @@ export default function StaffPortal({ user, onLogout }) {
   const [salaries, setSalaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Fingerprint Biometric Attendance states
+  const [fpStatus, setFpStatus] = useState({ enrolled: false, count: 0, loading: true });
+  const [fpPunching, setFpPunching] = useState(false);
+  const [fpEnrolling, setFpEnrolling] = useState(false);
+  const [fpMessage, setFpMessage] = useState('');
+  const [fpError, setFpError] = useState('');
 
   // Leave application modal
   const [showApplyModal, setShowApplyModal] = useState(false);
@@ -59,6 +86,83 @@ export default function StaffPortal({ user, onLogout }) {
     }
   }
 
+  async function checkFpStatus() {
+    try {
+      const res = await api('/webauthn/my-status');
+      setFpStatus({ enrolled: !!res?.enrolled, count: res?.count || 0, loading: false });
+    } catch {
+      setFpStatus({ enrolled: false, count: 0, loading: false });
+    }
+  }
+
+  async function handleEnrollFingerprint() {
+    setFpEnrolling(true);
+    setFpError('');
+    setFpMessage('');
+    try {
+      if (typeof window !== 'undefined' && !window.PublicKeyCredential) {
+        throw new Error('Biometric sensor is not supported on this browser. Please open in Google Chrome, Microsoft Edge, Safari, or an Android/iOS device with biometrics enabled.');
+      }
+      const opts = await api('/webauthn/register-options', {
+        method: 'POST',
+        body: JSON.stringify({ employee_id: user.employee_id })
+      });
+      const regResponse = await startRegistration({ optionsJSON: opts });
+      await api('/webauthn/register-verify', {
+        method: 'POST',
+        body: JSON.stringify({ employee_id: user.employee_id, registration: regResponse })
+      });
+      playBiometricChime(true);
+      setFpMessage('Fingerprint successfully enrolled on this device! You can now clock in with 1 touch.');
+      setFpStatus({ enrolled: true, count: 1, loading: false });
+      await loadStaffData();
+    } catch (err) {
+      playBiometricChime(false);
+      let msg = err.message || 'Failed to enroll fingerprint.';
+      if (err.name === 'NotAllowedError') msg = 'Fingerprint scan was cancelled or timed out. Please try again.';
+      if (err.name === 'InvalidStateError') msg = 'This fingerprint or device is already enrolled.';
+      setFpError(msg);
+    } finally {
+      setFpEnrolling(false);
+    }
+  }
+
+  async function handleFingerprintPunch() {
+    setFpPunching(true);
+    setFpError('');
+    setFpMessage('');
+    try {
+      if (typeof window !== 'undefined' && !window.PublicKeyCredential) {
+        throw new Error('Biometric sensor is not supported on this browser. Please open in Google Chrome, Edge, Safari, or an Android/iOS browser.');
+      }
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const opts = await api('/webauthn/auth-options', {
+        method: 'POST',
+        body: JSON.stringify({ employee_id: user.employee_id })
+      });
+      const authResponse = await startAuthentication({ optionsJSON: opts });
+      const res = await api('/webauthn/auth-verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          authResponse,
+          date: todayStr,
+          employee_id: user.employee_id
+        })
+      });
+      playBiometricChime(true);
+      setFpMessage(res.message || 'Attendance verified successfully via Fingerprint!');
+      await loadStaffData();
+    } catch (err) {
+      playBiometricChime(false);
+      let msg = err.message || 'Fingerprint verification failed.';
+      if (err.name === 'NotAllowedError') msg = 'Fingerprint scan was cancelled or not recognized. Please touch your sensor again.';
+      if (err.name === 'InvalidStateError') msg = 'No enrolled fingerprint recognized on this device. Please tap "Enroll Fingerprint" below.';
+      setFpError(msg);
+    } finally {
+      setFpPunching(false);
+    }
+  }
+
   async function loadStaffData() {
     try {
       setRefreshing(true);
@@ -70,6 +174,7 @@ export default function StaffPortal({ user, onLogout }) {
       setAttendanceData(att);
       setLeaves(lvs);
       setSalaries(sals);
+      await checkFpStatus();
     } catch (err) {
       console.error('Error loading staff portal data:', err);
     } finally {
@@ -299,6 +404,124 @@ export default function StaffPortal({ user, onLogout }) {
               </div>
             </div>
 
+            {/* 1-Tap Fingerprint Biometric Attendance Hub */}
+            <div className="bg-gradient-to-r from-violet-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-violet-800/40 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-72 h-72 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="bg-violet-500/20 text-violet-300 text-xs font-bold px-3 py-1 rounded-full border border-violet-500/30 flex items-center gap-1.5">
+                      <Fingerprint size={14} className="text-violet-300" />
+                      <span>Fingerprint Biometrics</span>
+                    </span>
+                    {fpStatus.enrolled ? (
+                      <span className="bg-emerald-500/20 text-emerald-300 text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
+                        <ShieldCheck size={13} />
+                        <span>Sensor Enrolled & Active</span>
+                      </span>
+                    ) : (
+                      <span className="bg-amber-500/20 text-amber-300 text-xs font-bold px-3 py-1 rounded-full border border-amber-500/30 flex items-center gap-1.5">
+                        <Smartphone size={13} />
+                        <span>Sensor Not Enrolled</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                    <span>Touch Sensor Attendance</span>
+                  </h2>
+
+                  <p className="text-violet-200/80 text-xs sm:text-sm max-w-xl">
+                    Clock in and out instantly using your mobile fingerprint scanner, Touch ID, or plant biometric reader.
+                  </p>
+
+                  {/* Today's Punch Status indicator */}
+                  {(() => {
+                    const todayStr = new Date().toISOString().slice(0, 10);
+                    const todayRec = attendanceData.history?.find(h => h.attendance_date === todayStr);
+                    if (todayRec?.check_in && !todayRec?.check_out) {
+                      return (
+                        <div className="inline-flex items-center gap-2 text-xs font-bold bg-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-xl border border-emerald-500/30 mt-2">
+                          <CheckCircle2 size={14} className="text-emerald-400" />
+                          <span>Currently Checked In at {todayRec.check_in} (Ready for Clock Out)</span>
+                        </div>
+                      );
+                    } else if (todayRec?.check_in && todayRec?.check_out) {
+                      return (
+                        <div className="inline-flex items-center gap-2 text-xs font-bold bg-blue-500/20 text-blue-300 px-3 py-1.5 rounded-xl border border-blue-500/30 mt-2">
+                          <CheckCircle2 size={14} className="text-blue-400" />
+                          <span>Today Complete: In {todayRec.check_in} · Out {todayRec.check_out}</span>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div className="inline-flex items-center gap-2 text-xs font-semibold bg-white/10 text-slate-300 px-3 py-1.5 rounded-xl border border-white/10 mt-2">
+                          <Clock size={14} className="text-amber-400" />
+                          <span>Not checked in today yet</span>
+                        </div>
+                      );
+                    }
+                  })()}
+                </div>
+
+                {/* Fingerprint Actions */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <button
+                    onClick={handleFingerprintPunch}
+                    disabled={fpPunching}
+                    className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-extrabold px-6 py-3.5 rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center gap-2.5 text-sm disabled:opacity-60"
+                  >
+                    {fpPunching ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin text-violet-200" />
+                        <span>Verifying Sensor…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Fingerprint size={20} className="text-violet-200" />
+                        <span>Touch Fingerprint to Clock In/Out</span>
+                      </>
+                    )}
+                  </button>
+
+                  {!fpStatus.enrolled && (
+                    <button
+                      onClick={handleEnrollFingerprint}
+                      disabled={fpEnrolling}
+                      className="bg-white/10 hover:bg-white/20 text-white font-bold px-4 py-3.5 rounded-2xl border border-white/20 transition flex items-center justify-center gap-2 text-xs disabled:opacity-60"
+                    >
+                      {fpEnrolling ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          <span>Enrolling…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={15} />
+                          <span>Enroll My Fingerprint</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status messages */}
+              {fpMessage && (
+                <div className="mt-4 p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center gap-2 animate-fade-in">
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                  <span>{fpMessage}</span>
+                </div>
+              )}
+              {fpError && (
+                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/40 text-red-200 text-xs font-semibold flex items-center gap-2 animate-fade-in">
+                  <AlertCircle size={16} className="text-red-400 shrink-0" />
+                  <span>{fpError}</span>
+                </div>
+              )}
+            </div>
+
             {/* Quick Actions & Recent Leaves Overview */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Attendance Snapshot */}
@@ -398,6 +621,15 @@ export default function StaffPortal({ user, onLogout }) {
                 <p className="text-xs text-slate-500 mt-0.5">Records clocked through Face Biometric, Fingerprint, or Plant Supervisor.</p>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleFingerprintPunch}
+                  disabled={fpPunching}
+                  className="bg-violet-700 hover:bg-violet-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow transition flex items-center gap-1.5 disabled:opacity-60"
+                  title="Touch your fingerprint sensor to record attendance"
+                >
+                  <Fingerprint size={14} />
+                  <span>{fpPunching ? 'Scanning…' : 'Touch Sensor to Clock In/Out'}</span>
+                </button>
                 <span className="text-xs font-semibold bg-slate-100 px-3 py-1.5 rounded-xl text-slate-700">
                   Month: {attendanceData.month || new Date().toISOString().slice(0, 7)}
                 </span>

@@ -1435,11 +1435,43 @@ app.get('/api/reports/:type', requireAuth, authorizeReport, asyncRoute(async (re
 }));
 
 // ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 //  WEBAUTHN / FINGERPRINT ROUTES
 // ─────────────────────────────────────────────────────────────────
 const RP_ID   = process.env.WEBAUTHN_RP_ID   || 'localhost';
 const RP_NAME = process.env.WEBAUTHN_RP_NAME  || 'VATHAN MINERALS';
 const WEBAUTHN_ORIGIN = process.env.WEBAUTHN_ORIGIN || 'http://localhost:5173';
+
+// Helper to resolve dynamic RP ID and origin for WebAuthn based on client origin/host
+function getWebAuthnConfig(req) {
+  let origin = process.env.WEBAUTHN_ORIGIN || 'http://localhost:5173';
+  let rpId = process.env.WEBAUTHN_RP_ID || 'localhost';
+
+  const clientHeader = req.headers.origin || req.headers.referer || '';
+  if (clientHeader) {
+    try {
+      const u = new URL(clientHeader);
+      origin = u.origin;
+      rpId = u.hostname;
+    } catch (_) {}
+  } else if (req.headers['x-forwarded-host']) {
+    const rawHost = req.headers['x-forwarded-host'].split(',')[0].trim().split(':')[0];
+    rpId = rawHost;
+    origin = `https://${rawHost}`;
+  } else if (req.headers.host) {
+    const rawHost = req.headers.host.split(':')[0];
+    rpId = rawHost;
+    origin = `${req.secure ? 'https' : 'http'}://${req.headers.host}`;
+  }
+
+  if (rpId === '127.0.0.1') rpId = 'localhost';
+
+  return {
+    origin,
+    rpId,
+    rpName: process.env.WEBAUTHN_RP_NAME || 'VATHAN MINERALS'
+  };
+}
 
 // In-memory challenge store: key → { challenge, expiresAt }
 const challengeCache = new Map();
@@ -1463,9 +1495,29 @@ app.get('/api/webauthn/enrolled', requireAuth, asyncRoute(async (req, res) => {
   res.json(rows);
 }));
 
-// POST /api/webauthn/register-options  – generate registration options (admin/manager)
+// GET /api/webauthn/my-status - for logged in staff or employee query
+app.get('/api/webauthn/my-status', requireAuth, asyncRoute(async (req, res) => {
+  const empId = req.user.employee_id;
+  if (!empId) {
+    return res.json({ enrolled: false, count: 0, credentials: [] });
+  }
+  const [rows] = await pool.query(
+    'SELECT id, credential_id, device_type, created_at, last_used FROM fingerprint_credentials WHERE employee_id=?',
+    [empId]
+  );
+  res.json({
+    enrolled: rows.length > 0,
+    count: rows.length,
+    credentials: rows
+  });
+}));
+
+// POST /api/webauthn/register-options  – generate registration options (admin, manager, or self-enrolling staff)
 app.post('/api/webauthn/register-options', requireAuth, asyncRoute(async (req, res) => {
-  const { employee_id } = req.body;
+  let { employee_id } = req.body || {};
+  if (req.user.role === 'staff' && !employee_id) {
+    employee_id = req.user.employee_id;
+  }
   if (!employee_id) return res.status(400).json({ error: 'employee_id is required' });
 
   const [[emp]] = await pool.query('SELECT * FROM employees WHERE id=?', [employee_id]);
@@ -1475,9 +1527,10 @@ app.post('/api/webauthn/register-options', requireAuth, asyncRoute(async (req, r
     'SELECT credential_id FROM fingerprint_credentials WHERE employee_id=?', [employee_id]
   );
 
+  const cfg = getWebAuthnConfig(req);
   const options = await generateRegistrationOptions({
-    rpName: RP_NAME,
-    rpID: RP_ID,
+    rpName: cfg.rpName,
+    rpID: cfg.rpId,
     userName: emp.employee_code,
     userDisplayName: emp.full_name,
     attestationType: 'none',
@@ -1485,7 +1538,6 @@ app.post('/api/webauthn/register-options', requireAuth, asyncRoute(async (req, r
     authenticatorSelection: {
       residentKey: 'preferred',
       userVerification: 'preferred',
-      authenticatorAttachment: 'platform', // device fingerprint sensor
     },
   });
 
@@ -1495,19 +1547,37 @@ app.post('/api/webauthn/register-options', requireAuth, asyncRoute(async (req, r
 
 // POST /api/webauthn/register-verify  – verify & store registration
 app.post('/api/webauthn/register-verify', requireAuth, asyncRoute(async (req, res) => {
-  const { employee_id, registration } = req.body;
+  let { employee_id, registration } = req.body || {};
+  if (req.user.role === 'staff' && !employee_id) {
+    employee_id = req.user.employee_id;
+  }
   if (!employee_id || !registration) return res.status(400).json({ error: 'employee_id and registration required' });
 
   const expectedChallenge = popChallenge(`reg_${employee_id}`);
   if (!expectedChallenge) return res.status(400).json({ error: 'Registration challenge expired. Please try again.' });
+
+  const cfg = getWebAuthnConfig(req);
+  const allowedOrigins = [
+    cfg.origin,
+    'https://vathan-minerals.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:4000',
+    'http://localhost:3000'
+  ].filter(Boolean);
+
+  const allowedRpIDs = [
+    cfg.rpId,
+    'vathan-minerals.vercel.app',
+    'localhost'
+  ].filter(Boolean);
 
   let verification;
   try {
     verification = await verifyRegistrationResponse({
       response: registration,
       expectedChallenge,
-      expectedOrigin: WEBAUTHN_ORIGIN,
-      expectedRPID: RP_ID,
+      expectedOrigin: allowedOrigins,
+      expectedRPID: allowedRpIDs,
       requireUserVerification: false,
     });
   } catch (e) {
@@ -1531,24 +1601,42 @@ app.post('/api/webauthn/register-verify', requireAuth, asyncRoute(async (req, re
   res.json({ verified: true });
 }));
 
-// POST /api/webauthn/auth-options  – generate auth challenge (public – kiosk use)
+// POST /api/webauthn/auth-options  – generate auth challenge (public kiosk use or authenticated staff)
 app.post('/api/webauthn/auth-options', asyncRoute(async (req, res) => {
+  const cfg = getWebAuthnConfig(req);
+  const { employee_id } = req.body || {};
+
+  let query = 'SELECT credential_id, transports FROM fingerprint_credentials';
+  const params = [];
+  if (employee_id) {
+    query += ' WHERE employee_id = ?';
+    params.push(employee_id);
+  }
+  const [creds] = await pool.query(query, params);
+
   const options = await generateAuthenticationOptions({
-    rpID: RP_ID,
+    rpID: cfg.rpId,
     userVerification: 'preferred',
-    allowCredentials: [], // discoverable – browser finds the right credential
+    allowCredentials: creds.map(c => ({
+      id: c.credential_id,
+      type: 'public-key',
+      transports: c.transports ? c.transports.split(',').filter(Boolean) : undefined,
+    })),
     timeout: 60_000,
   });
+
   setChallenge('auth', options.challenge);
+  if (employee_id) setChallenge(`auth_${employee_id}`, options.challenge);
   res.json(options);
 }));
 
-// POST /api/webauthn/auth-verify  – verify auth & mark attendance (public – kiosk)
+// POST /api/webauthn/auth-verify  – verify auth & mark attendance (public kiosk or personal device)
 app.post('/api/webauthn/auth-verify', asyncRoute(async (req, res) => {
-  const { authResponse, date } = req.body;
+  const { authResponse, date, employee_id } = req.body || {};
   if (!authResponse) return res.status(400).json({ error: 'authResponse required' });
 
-  const expectedChallenge = popChallenge('auth');
+  const challengeKey = employee_id ? `auth_${employee_id}` : 'auth';
+  let expectedChallenge = popChallenge(challengeKey) || popChallenge('auth');
   if (!expectedChallenge) return res.status(400).json({ error: 'Auth challenge expired. Please try again.' });
 
   // Look up the credential by credentialId
@@ -1561,18 +1649,33 @@ app.post('/api/webauthn/auth-verify', asyncRoute(async (req, res) => {
   );
   if (!storedCred) return res.status(404).json({ error: 'Fingerprint not recognized. Please enroll first.' });
 
+  const cfg = getWebAuthnConfig(req);
+  const allowedOrigins = [
+    cfg.origin,
+    'https://vathan-minerals.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:4000',
+    'http://localhost:3000'
+  ].filter(Boolean);
+
+  const allowedRpIDs = [
+    cfg.rpId,
+    'vathan-minerals.vercel.app',
+    'localhost'
+  ].filter(Boolean);
+
   let verification;
   try {
     verification = await verifyAuthenticationResponse({
       response: authResponse,
       expectedChallenge,
-      expectedOrigin: WEBAUTHN_ORIGIN,
-      expectedRPID: RP_ID,
+      expectedOrigin: allowedOrigins,
+      expectedRPID: allowedRpIDs,
       credential: {
         id: storedCred.credential_id,
         publicKey: Buffer.from(storedCred.public_key, 'base64'),
         counter: Number(storedCred.counter),
-        transports: storedCred.transports ? storedCred.transports.split(',') : [],
+        transports: storedCred.transports ? storedCred.transports.split(',').filter(Boolean) : [],
       },
       requireUserVerification: false,
     });

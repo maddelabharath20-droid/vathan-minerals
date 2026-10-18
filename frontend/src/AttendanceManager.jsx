@@ -374,6 +374,7 @@ export default function AttendanceManager({ user }) {
 
   const presentCount = todayAttendance.filter(a => a.status === 'present').length;
   const faceVerifiedCount = todayAttendance.filter(a => a.verification_type === 'face_recognition').length;
+  const fingerprintVerifiedCount = todayAttendance.filter(a => a.verification_type === 'fingerprint').length;
 
   return (
     <div className="space-y-6">
@@ -383,20 +384,28 @@ export default function AttendanceManager({ user }) {
           <VMLogo size={52} />
           <div>
             <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs tracking-wider uppercase">
-              <ScanFace size={15} /> Biometric AI Attendance · Rly. Kodur
+              <ScanFace size={15} /> Biometric AI & Fingerprint Attendance · Rly. Kodur
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black mt-0.5 text-slate-900">Face Recognition Attendance</h2>
+            <h2 className="text-2xl sm:text-3xl font-black mt-0.5 text-slate-900">Attendance & Biometrics Hub</h2>
             <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-              Automated facial recognition check-in kiosk and shift verification for VATHAN MINERALS.
+              Automated facial recognition, fingerprint sensor kiosks, and shift verification for VATHAN MINERALS.
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button 
+            onClick={() => setTab('fingerprint')}
+            className={`rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition shadow-sm ${
+              tab === 'fingerprint' ? 'bg-violet-800 text-white ring-2 ring-violet-400' : 'bg-violet-700 hover:bg-violet-800 text-white'
+            }`}
+          >
+            <Fingerprint size={16} /> Fingerprint Kiosk
+          </button>
+          <button 
             onClick={() => setEnrollModal(true)}
             className="bg-cyan-800 hover:bg-cyan-900 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition"
           >
-            <Camera size={16} /> Enroll Employee Face
+            <Camera size={16} /> Enroll Face
           </button>
           <button 
             onClick={() => setManualModal(true)}
@@ -429,7 +438,7 @@ export default function AttendanceManager({ user }) {
       )}
 
       {/* Stats Quick Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-white border rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-slate-500 font-medium">Today's Present</p>
           <p className="text-2xl font-bold text-slate-900 mt-1">{presentCount}</p>
@@ -438,20 +447,25 @@ export default function AttendanceManager({ user }) {
         <div className="bg-white border rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-slate-500 font-medium">Face Verified</p>
           <p className="text-2xl font-bold text-emerald-600 mt-1">{faceVerifiedCount}</p>
-          <p className="text-[11px] text-emerald-700/70 mt-0.5">Biometric check-ins</p>
+          <p className="text-[11px] text-emerald-700/70 mt-0.5">Camera check-ins</p>
+        </div>
+        <div className="bg-white border rounded-2xl p-4 shadow-sm">
+          <p className="text-xs text-slate-500 font-medium">Fingerprint Scans</p>
+          <p className="text-2xl font-bold text-violet-700 mt-1">{fingerprintVerifiedCount}</p>
+          <p className="text-[11px] text-violet-700/70 mt-0.5">Sensor punches</p>
         </div>
         <div className="bg-white border rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-slate-500 font-medium">Enrolled Faces</p>
           <p className="text-2xl font-bold text-cyan-800 mt-1">{enrolledFaces.length}</p>
           <p className="text-[11px] text-slate-400 mt-0.5">Of {employees.length} active staff</p>
         </div>
-        <div className="bg-white border rounded-2xl p-4 shadow-sm">
+        <div className="bg-white border rounded-2xl p-4 shadow-sm col-span-2 sm:col-span-1">
           <p className="text-xs text-slate-500 font-medium">Scanner Status</p>
           <div className="flex items-center gap-2 mt-1">
             <span className={`w-3 h-3 rounded-full ${cameraActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
             <span className="text-sm font-semibold text-slate-800">{cameraActive ? 'Live Camera' : 'Standby'}</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">{autoScan ? 'Auto-scan enabled' : 'Manual scan mode'}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{autoScan ? 'Auto-scan enabled' : 'Ready for sensor'}</p>
         </div>
       </div>
 
