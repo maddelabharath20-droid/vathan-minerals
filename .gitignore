@@ -13,7 +13,6 @@ frontend/.env
 
 # Build outputs
 frontend/dist/
-dist/
 
 # Logs
 *.log
