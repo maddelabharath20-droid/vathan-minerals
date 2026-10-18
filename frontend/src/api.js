@@ -1,4 +1,4 @@
-const PROD_API = 'https://serum-money-expanded-confident.trycloudflare.com/api';
+const PROD_API = 'https://intake-guestbook-regional-neon.trycloudflare.com/api';
 const isRemoteHost = typeof window !== 'undefined' && (
   window.location.hostname.includes('vercel.app') || 
   (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.hostname.includes('trycloudflare.com'))
@@ -51,13 +51,10 @@ export async function api(path, options = {}) {
   };
 
   // Determine candidate URLs (primary & fallback)
-  const candidateUrls = [];
+  // Relative '/api' first (instant Vercel proxy rewrite), with direct Cloudflare tunnel as backup
+  const candidateUrls = ['/api' + path];
   if (isRemoteHost) {
-    // On Vercel: try direct tunnel first for real-time speed, then Vercel proxy rewrite
     candidateUrls.push(`${PROD_API}${path}`);
-    candidateUrls.push(`/api${path}`);
-  } else {
-    candidateUrls.push(`/api${path}`);
   }
 
   let lastError = null;

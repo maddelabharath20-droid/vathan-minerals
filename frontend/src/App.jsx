@@ -1426,7 +1426,7 @@ function Reports() {
   const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : user.name;
   
   useEffect(() => {
-    if (!isProp && active !== 'Attendance' && active !== 'Mantra Device') {
+    if (!isProp && active !== 'Attendance') {
       setActive('Attendance');
     }
   }, [isProp, active]);
@@ -1441,10 +1441,10 @@ function Reports() {
 
   const visibleNav = isProp 
     ? nav 
-    : nav.filter(([label]) => label === 'Attendance' || label === 'Mantra Device');
+    : nav.filter(([label]) => label === 'Attendance');
 
   const currentActiveTitle = !isProp 
-    ? (active === 'Mantra Device' ? 'Mantra Device' : 'Attendance') 
+    ? 'Attendance' 
     : active;
 
   const module=Object.keys(configs).find(k=>configs[k].title===active);
@@ -1468,7 +1468,7 @@ function Reports() {
         {/* Workspace Navigation */}
         <nav className="p-3 flex-1 overflow-y-auto space-y-1">
           <p className="text-[10px] uppercase tracking-widest text-slate-500 font-extrabold px-3 py-2">
-            {isManagerOnly ? 'Attendance Modules' : 'Workspace'}
+            {isManagerOnly ? 'Attendance Access Only' : 'Workspace'}
           </p>
           {visibleNav.map(([label,path,Icon])=>(
             <button
@@ -1560,11 +1560,7 @@ function Reports() {
 
         <div className="p-5 sm:p-8 max-w-[1600px] mx-auto">
           {!isProp ? (
-            active === 'Mantra Device' ? (
-              <AttendanceManager user={user} initialTab="fingerprint"/>
-            ) : (
-              <AttendanceManager user={user}/>
-            )
+            <AttendanceManager user={user}/>
           ) : (
             active==='Dashboard'?<Dashboard user={user} onNavigate={setActive}/>:
             active==='Reports'?<Reports/>:
