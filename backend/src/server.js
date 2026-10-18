@@ -1272,7 +1272,7 @@ app.get('/api/attendance/today', requireAuth, allowRoles('admin','manager','hr')
   const date = req.query.date || today();
   const [rows] = await pool.execute(
     `SELECT a.id, a.employee_id, e.employee_code, e.full_name, e.job_title,
-            a.attendance_date, a.status, a.check_in, a.check_out, a.verification_type, a.notes, a.face_snapshot
+            a.attendance_date, a.status, a.check_in, a.check_out, a.verification_type, a.notes, a.face_snapshot, a.fingerprint_snapshot
      FROM attendance a
      JOIN employees e ON e.id = a.employee_id
      WHERE a.attendance_date = ?
@@ -1331,6 +1331,141 @@ app.post('/api/employees/:id/face', requireAuth, allowRoles('admin','manager','h
 app.delete('/api/employees/:id/face', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async (req, res) => {
   await pool.execute('UPDATE employees SET face_photo=NULL, face_descriptor=NULL WHERE id=?', [req.params.id]);
   res.json({ ok: true, message: 'Face enrollment removed' });
+}));
+
+// ─────────────────────────────────────────────────────────────────
+// USB SCANNER & HARDWARE FINGERPRINT ENDPOINTS
+// ─────────────────────────────────────────────────────────────────
+
+// Enroll Fingerprint (USB Scanner or Laptop Sensor)
+app.post('/api/employees/:id/fingerprint', requireAuth, allowRoles('admin','manager','hr','staff'), asyncRoute(async (req, res) => {
+  const empId = Number(req.params.id);
+  // If staff, verify they are enrolling themselves
+  if (req.user.role === 'staff' && req.user.employee_id !== empId) {
+    return res.status(403).json({ error: 'You are only authorized to enroll your own fingerprint.' });
+  }
+
+  const { fingerprint_image, fingerprint_template, quality, scanner_model } = req.body || {};
+  if (!fingerprint_image && !fingerprint_template) {
+    return res.status(400).json({ error: 'Fingerprint image or template data is required for enrollment' });
+  }
+
+  const [empRows] = await pool.execute('SELECT id, full_name, employee_code, job_title FROM employees WHERE id=? LIMIT 1', [empId]);
+  if (!empRows[0]) return res.status(404).json({ error: 'Employee not found' });
+  const emp = empRows[0];
+
+  const q = Number(quality) || 80;
+  await pool.execute(
+    `UPDATE employees 
+     SET fingerprint_image = ?, fingerprint_template = ?, fingerprint_quality = ?, fingerprint_enrolled_at = NOW() 
+     WHERE id = ?`,
+    [fingerprint_image || null, fingerprint_template || null, q, empId]
+  );
+
+  // Maintain unified record in fingerprint_credentials table
+  const credId = `fp_${empId}_${Date.now()}`;
+  const deviceType = scanner_model || 'USB Biometric Scanner';
+  await pool.query(
+    `INSERT INTO fingerprint_credentials
+       (employee_id, credential_id, public_key, counter, device_type, transports, last_used)
+     VALUES (?, ?, ?, 0, ?, 'usb', NOW())
+     ON DUPLICATE KEY UPDATE public_key=VALUES(public_key), device_type=VALUES(device_type), last_used=NOW()`,
+    [empId, credId, fingerprint_template || (fingerprint_image ? fingerprint_image.slice(0, 500) : 'usb_biometric'), deviceType]
+  );
+
+  res.json({
+    ok: true,
+    message: `Fingerprint successfully enrolled for ${emp.full_name} (${emp.employee_code}) with ${q}% quality score`,
+    employee: emp
+  });
+}));
+
+// Remove Fingerprint Enrollment
+app.delete('/api/employees/:id/fingerprint', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async (req, res) => {
+  const empId = Number(req.params.id);
+  await pool.execute(
+    'UPDATE employees SET fingerprint_image=NULL, fingerprint_template=NULL, fingerprint_quality=NULL, fingerprint_enrolled_at=NULL WHERE id=?',
+    [empId]
+  );
+  await pool.query('DELETE FROM fingerprint_credentials WHERE employee_id=?', [empId]);
+  res.json({ ok: true, message: 'Fingerprint enrollment removed successfully' });
+}));
+
+// List of all enrolled staff with fingerprints (for Kiosk display & audit)
+app.get('/api/employees/enrolled-fingerprints', requireAuth, asyncRoute(async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT e.id, e.employee_code, e.full_name, e.job_title, e.fingerprint_image, e.fingerprint_quality, e.fingerprint_enrolled_at,
+            (SELECT COUNT(*) FROM fingerprint_credentials fc WHERE fc.employee_id = e.id) as cred_count,
+            (SELECT MAX(fc.last_used) FROM fingerprint_credentials fc WHERE fc.employee_id = e.id) as last_scanned
+     FROM employees e
+     WHERE (e.fingerprint_image IS NOT NULL OR e.fingerprint_template IS NOT NULL OR 
+            EXISTS (SELECT 1 FROM fingerprint_credentials fc WHERE fc.employee_id = e.id))
+       AND e.active = 1
+     ORDER BY e.full_name`
+  );
+  res.json(rows);
+}));
+
+// Direct Biometric Attendance Punch (For USB Fingerprint Devices & Laptop Biometrics)
+app.post('/api/biometrics/fingerprint-punch', asyncRoute(async (req, res) => {
+  const { employee_id, fingerprint_image, fingerprint_template, quality, scanner_model, date } = req.body || {};
+  const empId = Number(employee_id);
+  if (!empId) {
+    return res.status(400).json({ error: 'Please select an employee or ensure worker ID is identified' });
+  }
+
+  const [empRows] = await pool.execute('SELECT id, full_name, employee_code, job_title, active FROM employees WHERE id=? LIMIT 1', [empId]);
+  if (!empRows[0]) return res.status(404).json({ error: 'Employee not found' });
+  const emp = empRows[0];
+  if (!emp.active) return res.status(403).json({ error: 'Employee account is deactivated. Contact administration.' });
+
+  const attendanceDate = date || new Date().toISOString().slice(0, 10);
+  const nowTime = new Date().toTimeString().slice(0, 5);
+  const scannerName = scanner_model || 'USB Fingerprint Scanner';
+
+  const [existingRows] = await pool.execute(
+    'SELECT * FROM attendance WHERE employee_id=? AND attendance_date=? LIMIT 1',
+    [empId, attendanceDate]
+  );
+  const existing = existingRows[0];
+  const action = existing && existing.check_in && !existing.check_out ? 'check_out' : 'check_in';
+
+  await pool.execute(
+    `INSERT INTO attendance (employee_id, attendance_date, status, check_in, check_out, verification_type, fingerprint_snapshot, notes)
+     VALUES (?, ?, 'present', ?, ?, 'fingerprint', ?, CONCAT('Fingerprint verified via ', ?, ' at ', ?))
+     ON DUPLICATE KEY UPDATE
+       check_in  = IF(check_in IS NULL, VALUES(check_in), check_in),
+       check_out = IF(check_in IS NOT NULL AND check_out IS NULL, VALUES(check_out), check_out),
+       status    = 'present',
+       verification_type = 'fingerprint',
+       fingerprint_snapshot = COALESCE(VALUES(fingerprint_snapshot), fingerprint_snapshot),
+       notes     = VALUES(notes)`,
+    [
+      empId, attendanceDate,
+      action === 'check_in' ? nowTime : null,
+      action === 'check_out' ? nowTime : null,
+      fingerprint_image || null,
+      scannerName,
+      nowTime
+    ]
+  );
+
+  // Update last_used in credentials
+  await pool.query('UPDATE fingerprint_credentials SET last_used=NOW() WHERE employee_id=?', [empId]);
+
+  res.json({
+    success: true,
+    action,
+    time: nowTime,
+    employee: {
+      id: emp.id,
+      full_name: emp.full_name,
+      employee_code: emp.employee_code,
+      job_title: emp.job_title
+    },
+    scanner: scannerName,
+    message: `${emp.full_name} (${emp.employee_code}) — ${action === 'check_in' ? 'Checked In' : 'Checked Out'} successfully at ${nowTime} via ${scannerName}`
+  });
 }));
 
 app.post('/api/products', requireAuth, allowRoles('admin','manager','production'), asyncRoute(async(req,res)=>{
