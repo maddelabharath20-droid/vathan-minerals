@@ -1378,22 +1378,47 @@ function Reports() {
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState('dashboard');
 
-  const isProp = Boolean(
-    user?.role === 'admin' ||
+  const isBharathDev = Boolean(
+    user?.employee_code === 'B-001' ||
+    (user?.name && user.name.toLowerCase().includes('bharath')) ||
+    (user?.email && user.email.toLowerCase().includes('bharath'))
+  );
+
+  const isSubbaiahProp = Boolean(
     (user?.name && user.name.toLowerCase().includes('subbaiah')) ||
     (user?.email && (user.email.toLowerCase().includes('subbaiah') || user.email.includes('vathanminerals6336') || user.email.includes('owner.proprietor')))
   );
 
-  const isManagerUser = Boolean(
+  // Full administrative access granted to Proprietor AND to Bharath (Developer & System Maintainer)
+  const hasFullAccess = Boolean(
+    isSubbaiahProp ||
+    isBharathDev ||
+    (user?.role === 'admin' && !['009', '010'].includes(user?.employee_code))
+  );
+
+  const isProp = isSubbaiahProp;
+
+  const isManagerOnly = !hasFullAccess && Boolean(
     user?.role === 'manager' ||
-    ['009', '010', 'B-001', '002', '005'].includes(user?.employee_code) ||
+    ['009', '010', '002', '005'].includes(user?.employee_code) ||
     user?.job_title?.toLowerCase().includes('manager') ||
     user?.job_title?.toLowerCase().includes('supervisor') ||
     user?.job_title?.toLowerCase().includes('incharge')
   );
 
-  const isManagerOnly = !isProp && (isManagerUser || user?.role === 'manager');
-  const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : (user?.name || '');
+  const displayName = isProp 
+    ? 'MADDELA VENKATA SUBBAIAH' 
+    : isBharathDev 
+      ? 'MADDELA BHARATH' 
+      : (user?.name || '');
+
+  const roleBadgeTitle = isProp
+    ? 'Proprietor & Admin (Prop Account)'
+    : isBharathDev
+      ? 'Developer & System Maintainer'
+      : isManagerOnly
+        ? 'Plant Manager (Attendance Officer)'
+        : `${user?.role || 'User'} Account`;
 
   useEffect(()=>{
     api('/auth/me')
@@ -1405,10 +1430,10 @@ function Reports() {
   },[]);
 
   useEffect(() => {
-    if (user && !isProp && active !== 'Attendance') {
+    if (user && !hasFullAccess && active !== 'Attendance') {
       setActive('Attendance');
     }
-  }, [user, isProp, active]);
+  }, [user, hasFullAccess, active]);
 
   function handleLogin(loggedInUser, token) {
     if (token) setAuthToken(token);
@@ -1439,7 +1464,7 @@ function Reports() {
 
   if(!user)return <Auth onLogin={handleLogin}/>;
 
-  if (user.role === 'staff' && !isProp && !isManagerUser) {
+  if (user.role === 'staff' && !hasFullAccess && !isManagerOnly) {
     return <StaffPortal user={user} onLogout={logout} />;
   }
 
@@ -1447,11 +1472,11 @@ function Reports() {
     return <StaffPortal user={user} onLogout={logout} onBack={() => setViewMode('dashboard')} />;
   }
 
-  const visibleNav = isProp 
+  const visibleNav = hasFullAccess 
     ? nav 
     : nav.filter(([label]) => label === 'Attendance');
 
-  const currentActiveTitle = !isProp 
+  const currentActiveTitle = !hasFullAccess 
     ? 'Attendance' 
     : active;
 
@@ -1495,7 +1520,7 @@ function Reports() {
             <LeadershipBadge compact={true} dark={true} />
           </div>
 
-          {isProp && (
+          {hasFullAccess && (
             <div className="pt-2 px-1">
               <button
                 onClick={() => setViewMode('staff_portal')}
@@ -1512,11 +1537,7 @@ function Reports() {
         <div className="p-4 border-t border-white/10 bg-slate-950/90">
           <div className="text-sm font-bold truncate text-white">{displayName}</div>
           <div className="text-[11px] font-black uppercase tracking-wider text-emerald-400 mt-0.5">
-            {isProp 
-              ? 'Proprietor & Admin (Prop Account)' 
-              : isManagerOnly 
-                ? 'Plant Manager (Attendance Officer)' 
-                : `${user.role} Account`}
+            {roleBadgeTitle}
           </div>
           <button
             onClick={logout}
@@ -1550,11 +1571,7 @@ function Reports() {
             <div className="hidden md:flex flex-col text-right">
               <span className="text-xs font-black tracking-tight text-slate-900">{displayName}</span>
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block self-end mt-0.5">
-                {isProp 
-                  ? 'Proprietor & Admin (Prop Account)' 
-                  : isManagerOnly 
-                    ? 'Plant Manager (Attendance Officer)' 
-                    : user.role}
+                {roleBadgeTitle}
               </span>
             </div>
             <span className="hidden sm:block text-xs font-medium text-slate-400 border-l pl-3 ml-1">
@@ -1567,7 +1584,7 @@ function Reports() {
         </header>
 
         <div className="p-5 sm:p-8 max-w-[1600px] mx-auto">
-          {!isProp ? (
+          {!hasFullAccess ? (
             <AttendanceManager user={user}/>
           ) : (
             active==='Dashboard'?<Dashboard user={user} onNavigate={setActive}/>:

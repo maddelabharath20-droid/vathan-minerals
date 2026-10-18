@@ -796,6 +796,14 @@ app.get('/api/auth/me', requireAuth, asyncRoute(async (req, res) => {
   ) {
     currentUser.name = 'MADDELA VENKATA SUBBAIAH';
     currentUser.role = 'admin';
+  } else if (
+    currentUser.employee_code === 'B-001' ||
+    currentUser.name?.toLowerCase().includes('bharath') ||
+    currentUser.email?.toLowerCase().includes('bharath')
+  ) {
+    currentUser.name = 'MADDELA BHARATH';
+    currentUser.role = 'admin';
+    currentUser.job_title = 'Developer & System Maintainer';
   }
   res.json({ user: currentUser });
 }));
