@@ -1371,8 +1371,30 @@ function Reports() {
   <div className="bg-amber-50 border border-amber-200 text-amber-950 rounded-xl p-4 mt-5 text-sm"><strong>Report notes:</strong> Inventory exports show movement transactions, not a historical closing-stock snapshot. Accounts exports calculate payments received up to the report end date for invoices dated in the selected period. Review totals against source records before statutory or tax filing.</div></div>
  }
  export default function App(){
-  const [user,setUser]=useState(null),[checking,setChecking]=useState(true),[active,setActive]=useState('Dashboard'),[mobile,setMobile]=useState(false),[error,setError]=useState('');
-  
+  const [user, setUser] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const [active, setActive] = useState('Dashboard');
+  const [mobile, setMobile] = useState(false);
+  const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState('dashboard');
+
+  const isProp = Boolean(
+    user?.role === 'admin' ||
+    (user?.name && user.name.toLowerCase().includes('subbaiah')) ||
+    (user?.email && (user.email.toLowerCase().includes('subbaiah') || user.email.includes('vathanminerals6336') || user.email.includes('owner.proprietor')))
+  );
+
+  const isManagerUser = Boolean(
+    user?.role === 'manager' ||
+    ['009', '010', 'B-001', '002', '005'].includes(user?.employee_code) ||
+    user?.job_title?.toLowerCase().includes('manager') ||
+    user?.job_title?.toLowerCase().includes('supervisor') ||
+    user?.job_title?.toLowerCase().includes('incharge')
+  );
+
+  const isManagerOnly = !isProp && (isManagerUser || user?.role === 'manager');
+  const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : (user?.name || '');
+
   useEffect(()=>{
     api('/auth/me')
       .then(d=>setUser(d.user))
@@ -1381,6 +1403,12 @@ function Reports() {
       })
       .finally(()=>setChecking(false));
   },[]);
+
+  useEffect(() => {
+    if (user && !isProp && active !== 'Attendance') {
+      setActive('Attendance');
+    }
+  }, [user, isProp, active]);
 
   function handleLogin(loggedInUser, token) {
     if (token) setAuthToken(token);
@@ -1408,28 +1436,8 @@ function Reports() {
       </div>
     </div>
   );
-  const [viewMode, setViewMode] = useState('dashboard');
+
   if(!user)return <Auth onLogin={handleLogin}/>;
-  const isProp = Boolean(
-    user?.role === 'admin' ||
-    (user?.name && user.name.toLowerCase().includes('subbaiah')) ||
-    (user?.email && (user.email.toLowerCase().includes('subbaiah') || user.email.includes('vathanminerals6336') || user.email.includes('owner.proprietor')))
-  );
-  const isManagerUser = Boolean(
-    user?.role === 'manager' ||
-    ['009', '010', 'B-001', '002', '005'].includes(user?.employee_code) ||
-    user?.job_title?.toLowerCase().includes('manager') ||
-    user?.job_title?.toLowerCase().includes('supervisor') ||
-    user?.job_title?.toLowerCase().includes('incharge')
-  );
-  const isManagerOnly = !isProp && (isManagerUser || user?.role === 'manager');
-  const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : user.name;
-  
-  useEffect(() => {
-    if (!isProp && active !== 'Attendance') {
-      setActive('Attendance');
-    }
-  }, [isProp, active]);
 
   if (user.role === 'staff' && !isProp && !isManagerUser) {
     return <StaffPortal user={user} onLogout={logout} />;
