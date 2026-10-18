@@ -181,15 +181,28 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
     return res.status(401).json({ error: 'Incorrect password. Please verify your personal password and try again.' });
   }
 
-  const token = setAuthCookie(res, user, req);
+  let empDetails = null;
+  if (user.employee_id) {
+    const [empRows] = await pool.execute('SELECT employee_code, job_title, full_name, phone FROM employees WHERE id=? LIMIT 1', [user.employee_id]);
+    empDetails = empRows[0];
+  }
+  const userPayload = {
+    ...user,
+    employee_code: empDetails?.employee_code || user.employee_code || null,
+    job_title: empDetails?.job_title || user.job_title || null
+  };
+
+  const token = setAuthCookie(res, userPayload, req);
   res.json({
     user: {
       id: user.id,
-      name: user.name,
+      name: empDetails?.full_name || user.name,
       email: user.email,
-      phone: user.phone,
+      phone: empDetails?.phone || user.phone,
       role: user.role,
-      employee_id: user.employee_id
+      employee_id: user.employee_id,
+      employee_code: empDetails?.employee_code || null,
+      job_title: empDetails?.job_title || null
     },
     token
   });
@@ -1170,6 +1183,14 @@ const listConfigs = {
   trips: { table:'lorry_trips', roles:['admin','manager','dispatch','accounts'] },
   payments: { table:'payments', roles:['admin','manager','accounts'] }
 };
+
+// Employee directory listing: allow admin, manager, hr, and staff (needed for Attendance kiosk and dropdowns)
+app.get('/api/employees', requireAuth, allowRoles('admin','manager','hr','staff'), asyncRoute(async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 500);
+  const [rows] = await pool.query('SELECT * FROM employees ORDER BY id DESC LIMIT ?', [limit]);
+  res.json(rows);
+}));
+
 for (const [key,cfg] of Object.entries(listConfigs)) {
   app.get(`/api/${key}`, requireAuth, allowRoles(...cfg.roles), asyncRoute(async (req,res) => {
     const limit = Math.min(Math.max(Number(req.query.limit)||100,1),500);
@@ -1254,12 +1275,39 @@ app.post('/api/employees', requireAuth, allowRoles('admin','manager','hr'), asyn
   res.status(201).json({id:r.insertId,...p.data});
 }));
 
+// Helper: Allow Admin, Manager, HR, and Plant Managers/Supervisors to take attendance
+async function allowAttendanceManagers(req, res, next) {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Please log in' });
+    if (['admin','manager','hr'].includes(req.user.role)) return next();
+    if (req.user.role === 'staff') {
+      let code = req.user.employee_code || '';
+      let title = (req.user.job_title || '').toLowerCase();
+      if ((!code || !title) && req.user.employee_id) {
+        const [rows] = await pool.execute('SELECT employee_code, job_title FROM employees WHERE id=? LIMIT 1', [req.user.employee_id]);
+        if (rows[0]) {
+          code = rows[0].employee_code || code;
+          title = (rows[0].job_title || '').toLowerCase();
+          req.user.employee_code = code;
+          req.user.job_title = rows[0].job_title;
+        }
+      }
+      if (['009','010','B-001','002','005'].includes(code) || title.includes('manager') || title.includes('incharge') || title.includes('supervisor')) {
+        return next();
+      }
+    }
+    return res.status(403).json({ error: 'Attendance authorization requires Manager, Supervisor or Admin privileges' });
+  } catch {
+    return res.status(500).json({ error: 'Failed to verify attendance authorization' });
+  }
+}
+
 // Attendance List (with employee details)
-app.get('/api/attendance', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async (req, res) => {
+app.get('/api/attendance', requireAuth, allowAttendanceManagers, asyncRoute(async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit)||100, 1), 500);
   const [rows] = await pool.query(
     `SELECT a.id, a.employee_id, e.employee_code, e.full_name, e.job_title,
-            a.attendance_date, a.status, a.check_in, a.check_out, a.verification_type, a.notes, a.face_snapshot
+            a.attendance_date, a.status, a.check_in, a.check_out, a.verification_type, a.notes, a.face_snapshot, a.fingerprint_snapshot
      FROM attendance a
      JOIN employees e ON e.id = a.employee_id
      ORDER BY a.attendance_date DESC, a.id DESC LIMIT ?`, [limit]
@@ -1267,8 +1315,8 @@ app.get('/api/attendance', requireAuth, allowRoles('admin','manager','hr'), asyn
   res.json(rows);
 }));
 
-// Today's attendance quick view for Face Kiosk
-app.get('/api/attendance/today', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async (req, res) => {
+// Today's attendance quick view for Face & Fingerprint Kiosks
+app.get('/api/attendance/today', requireAuth, allowAttendanceManagers, asyncRoute(async (req, res) => {
   const date = req.query.date || today();
   const [rows] = await pool.execute(
     `SELECT a.id, a.employee_id, e.employee_code, e.full_name, e.job_title,
@@ -1281,8 +1329,8 @@ app.get('/api/attendance/today', requireAuth, allowRoles('admin','manager','hr')
   res.json(rows);
 }));
 
-// Attendance Check-in / Check-out (Manual & Face Recognition)
-app.post('/api/attendance', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async(req,res)=>{
+// Attendance Check-in / Check-out (Manual, Face Recognition & Fingerprint)
+app.post('/api/attendance', requireAuth, allowAttendanceManagers, asyncRoute(async(req,res)=>{
   const p=z.object({
     employee_id:z.coerce.number().int().positive(),
     attendance_date:dateString,
@@ -1290,25 +1338,27 @@ app.post('/api/attendance', requireAuth, allowRoles('admin','manager','hr'), asy
     check_in:z.string().optional(),
     check_out:z.string().optional(),
     notes:z.string().optional(),
-    verification_type:z.enum(['manual','face_recognition']).default('manual'),
-    face_snapshot:z.string().optional()
+    verification_type:z.enum(['manual','face_recognition','fingerprint']).default('manual'),
+    face_snapshot:z.string().optional(),
+    fingerprint_snapshot:z.string().optional()
   }).safeParse(req.body);
   if(!p.success) return res.status(400).json({error:'Employee, date and valid attendance status are required'});
-  await pool.execute(`INSERT INTO attendance(employee_id,attendance_date,status,check_in,check_out,notes,verification_type,face_snapshot,created_by)
-    VALUES(?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
+  await pool.execute(`INSERT INTO attendance(employee_id,attendance_date,status,check_in,check_out,notes,verification_type,face_snapshot,fingerprint_snapshot,created_by)
+    VALUES(?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
     status=VALUES(status),
     check_in=COALESCE(check_in, VALUES(check_in)),
     check_out=COALESCE(VALUES(check_out), check_out),
     notes=COALESCE(VALUES(notes), notes),
     verification_type=VALUES(verification_type),
     face_snapshot=COALESCE(VALUES(face_snapshot), face_snapshot),
+    fingerprint_snapshot=COALESCE(VALUES(fingerprint_snapshot), fingerprint_snapshot),
     created_by=VALUES(created_by)`,
-    [p.data.employee_id,p.data.attendance_date,p.data.status,p.data.check_in||null,p.data.check_out||null,p.data.notes||null,p.data.verification_type,p.data.face_snapshot||null,req.user.sub]);
+    [p.data.employee_id,p.data.attendance_date,p.data.status,p.data.check_in||null,p.data.check_out||null,p.data.notes||null,p.data.verification_type,p.data.face_snapshot||null,p.data.fingerprint_snapshot||null,req.user.sub]);
   res.status(201).json({ok:true});
 }));
 
 // Enrolled Faces for real-time camera recognition
-app.get('/api/employees/enrolled-faces', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async (req, res) => {
+app.get('/api/employees/enrolled-faces', requireAuth, allowAttendanceManagers, asyncRoute(async (req, res) => {
   const [rows] = await pool.execute(
     'SELECT id, employee_code, full_name, job_title, face_photo, face_descriptor FROM employees WHERE active=1 AND face_descriptor IS NOT NULL'
   );
@@ -1316,7 +1366,7 @@ app.get('/api/employees/enrolled-faces', requireAuth, allowRoles('admin','manage
 }));
 
 // Face Enrollment
-app.post('/api/employees/:id/face', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async (req, res) => {
+app.post('/api/employees/:id/face', requireAuth, allowAttendanceManagers, asyncRoute(async (req, res) => {
   const p = z.object({
     face_photo: z.string().min(10, 'Face photo image is required'),
     face_descriptor: z.string().min(10, 'Biometric descriptor vector is required')
@@ -1328,7 +1378,7 @@ app.post('/api/employees/:id/face', requireAuth, allowRoles('admin','manager','h
 }));
 
 // Face Removal
-app.delete('/api/employees/:id/face', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async (req, res) => {
+app.delete('/api/employees/:id/face', requireAuth, allowAttendanceManagers, asyncRoute(async (req, res) => {
   await pool.execute('UPDATE employees SET face_photo=NULL, face_descriptor=NULL WHERE id=?', [req.params.id]);
   res.json({ ok: true, message: 'Face enrollment removed' });
 }));
@@ -1340,9 +1390,21 @@ app.delete('/api/employees/:id/face', requireAuth, allowRoles('admin','manager',
 // Enroll Fingerprint (USB Scanner or Laptop Sensor)
 app.post('/api/employees/:id/fingerprint', requireAuth, allowRoles('admin','manager','hr','staff'), asyncRoute(async (req, res) => {
   const empId = Number(req.params.id);
-  // If staff, verify they are enrolling themselves
+  // If staff, verify they are enrolling themselves unless they are an attendance manager
   if (req.user.role === 'staff' && req.user.employee_id !== empId) {
-    return res.status(403).json({ error: 'You are only authorized to enroll your own fingerprint.' });
+    let code = req.user.employee_code || '';
+    let title = (req.user.job_title || '').toLowerCase();
+    if ((!code || !title) && req.user.employee_id) {
+      const [rows] = await pool.execute('SELECT employee_code, job_title FROM employees WHERE id=? LIMIT 1', [req.user.employee_id]);
+      if (rows[0]) {
+        code = rows[0].employee_code || code;
+        title = (rows[0].job_title || '').toLowerCase();
+      }
+    }
+    const isMgr = ['009','010','B-001','002','005'].includes(code) || title.includes('manager') || title.includes('incharge') || title.includes('supervisor');
+    if (!isMgr) {
+      return res.status(403).json({ error: 'You are only authorized to enroll your own fingerprint.' });
+    }
   }
 
   const { fingerprint_image, fingerprint_template, quality, scanner_model } = req.body || {};
@@ -1381,7 +1443,7 @@ app.post('/api/employees/:id/fingerprint', requireAuth, allowRoles('admin','mana
 }));
 
 // Remove Fingerprint Enrollment
-app.delete('/api/employees/:id/fingerprint', requireAuth, allowRoles('admin','manager','hr'), asyncRoute(async (req, res) => {
+app.delete('/api/employees/:id/fingerprint', requireAuth, allowAttendanceManagers, asyncRoute(async (req, res) => {
   const empId = Number(req.params.id);
   await pool.execute(
     'UPDATE employees SET fingerprint_image=NULL, fingerprint_template=NULL, fingerprint_quality=NULL, fingerprint_enrolled_at=NULL WHERE id=?',

@@ -25,7 +25,9 @@ export function setAuthCookie(res, user, req = null) {
     sub: String(user.id), 
     role: user.role, 
     email: user.email, 
-    employee_id: user.employee_id || null 
+    employee_id: user.employee_id || null,
+    employee_code: user.employee_code || null,
+    job_title: user.job_title || null
   }, secret, { expiresIn: '8h' });
   const secure = isConnectionSecure(req);
   res.cookie('barytes_session', token, cookieOptions(secure));

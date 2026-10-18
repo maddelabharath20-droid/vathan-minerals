@@ -235,12 +235,12 @@ function Auth({onLogin}) {
   }
 
   const rolesList = [
-    ['manager', 'Operations Manager'],
+    ['admin', 'Prop Account · Proprietor (MADDELA VENKATA SUBBAIAH)'],
+    ['manager', 'Operations Manager (Taking Attendance & Plant Operations)'],
     ['hr', 'HR & People'],
     ['production', 'Production & Milling'],
     ['dispatch', 'Logistics & Dispatch'],
-    ['accounts', 'Finance & Billing'],
-    ['admin', 'System Administrator']
+    ['accounts', 'Finance & Billing']
   ];
 
   async function submit(e) {
@@ -441,7 +441,7 @@ function Auth({onLogin}) {
               }`}
             >
               <ShieldCheck size={16} className={loginTab === 'admin' ? 'text-emerald-400' : 'text-slate-400'} />
-              <span>Admin Login</span>
+              <span>Prop / Manager Login</span>
             </button>
             <button
               type="button"
@@ -480,8 +480,8 @@ function Auth({onLogin}) {
                     <ShieldCheck size={20} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-slate-900">Admin Login</h2>
-                    <p className="text-slate-500 text-xs">VATHAN MINERALS · Management & Admin Access</p>
+                    <h2 className="text-xl font-black text-slate-900">Proprietor & Manager Login</h2>
+                    <p className="text-slate-500 text-xs">Prop Account (Prop : MADDELA VENKATA SUBBAIAH) · Operations Managers</p>
                   </div>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
@@ -525,7 +525,7 @@ function Auth({onLogin}) {
                   autoCapitalize="none"
                   value={email}
                   onChange={e => handleEmailChange(e.target.value)}
-                  placeholder="Enter Admin Email or Username"
+                  placeholder="Enter Prop Account or Manager Email / Username"
                   required
                 />
                 <div className="flex items-center justify-between mt-1.5 px-0.5">
@@ -559,7 +559,7 @@ function Auth({onLogin}) {
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-700">Password</label>
-                  {!isSignUp && <span className="text-[11px] text-slate-400">Admin Password</span>}
+                  {!isSignUp && <span className="text-[11px] text-slate-400">Prop / Manager Password</span>}
                 </div>
                 <input
                   className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold"
@@ -596,7 +596,7 @@ function Auth({onLogin}) {
                 type="submit"
                 className="w-full bg-slate-950 hover:bg-slate-800 text-white rounded-xl py-3 font-bold text-sm disabled:opacity-60 transition shadow-lg mt-1 flex items-center justify-center gap-2"
               >
-                {busy ? (isSignUp ? 'Creating Account…' : 'Signing In…') : (isSignUp ? 'Create Admin Account' : 'Sign In as Admin')}
+                {busy ? (isSignUp ? 'Creating Account…' : 'Signing In…') : (isSignUp ? 'Create Prop / Manager Account' : 'Sign In to Prop / Manager Account')}
               </button>
 
               {/* Divider */}
@@ -1417,7 +1417,13 @@ function Reports() {
         {/* User Profile & Sign Out */}
         <div className="p-4 border-t border-white/10 bg-slate-950/90">
           <div className="text-sm font-bold truncate text-white">{user.name}</div>
-          <div className="text-xs text-emerald-400 capitalize mt-0.5">{user.role} Account</div>
+          <div className="text-[11px] font-black uppercase tracking-wider text-emerald-400 mt-0.5">
+            {user.role === 'admin' 
+              ? 'Proprietor Account (Prop Account)' 
+              : user.role === 'manager' 
+                ? 'Plant Manager (Attendance Officer)' 
+                : `${user.role} Account`}
+          </div>
           <button
             onClick={logout}
             className="mt-3 w-full flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-red-400 transition"
@@ -1449,7 +1455,13 @@ function Reports() {
           <div className="flex items-center gap-3">
             <div className="hidden md:flex flex-col text-right">
               <span className="text-xs font-bold text-slate-800">{user.name}</span>
-              <span className="text-[11px] text-emerald-700 font-semibold uppercase tracking-wider">{user.role}</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                {user.role === 'admin' 
+                  ? 'Prop Account · Proprietor' 
+                  : user.role === 'manager' 
+                    ? 'Operations Manager · Taking Attendance' 
+                    : user.role}
+              </span>
             </div>
             <span className="hidden sm:block text-xs font-medium text-slate-400 border-l pl-3 ml-1">
               {new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}

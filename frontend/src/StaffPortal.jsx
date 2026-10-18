@@ -4,8 +4,9 @@ import VMLogo from './VMLogo';
 import { 
   Calendar, Clock, DollarSign, FileText, CheckCircle2, XCircle, 
   AlertCircle, Plus, RefreshCw, Printer, User, LogOut, ArrowRight,
-  TrendingUp, Sparkles, Send, ShieldCheck, Lock, Fingerprint, Loader2, Smartphone
+  TrendingUp, Sparkles, Send, ShieldCheck, Lock, Fingerprint, Loader2, Smartphone, ScanFace
 } from 'lucide-react';
+import AttendanceManager from './AttendanceManager';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 
 function playBiometricChime(success) {
@@ -28,7 +29,16 @@ function playBiometricChime(success) {
 }
 
 export default function StaffPortal({ user, onLogout }) {
-  const [activeTab, setActiveTab] = useState('overview'); // overview, attendance, leaves, salary
+  const isManager = Boolean(
+    user?.role === 'manager' ||
+    user?.role === 'admin' ||
+    ['009', '010', 'B-001', '002', '005'].includes(user?.employee_code) ||
+    user?.job_title?.toLowerCase().includes('manager') ||
+    user?.job_title?.toLowerCase().includes('supervisor') ||
+    user?.job_title?.toLowerCase().includes('incharge') ||
+    user?.job_title?.toLowerCase().includes('officer')
+  );
+  const [activeTab, setActiveTab] = useState('overview'); // overview, attendance, leaves, salary, kiosk
   const [attendanceData, setAttendanceData] = useState({ stats: {}, history: [] });
   const [leaves, setLeaves] = useState([]);
   const [salaries, setSalaries] = useState([]);
@@ -250,7 +260,9 @@ export default function StaffPortal({ user, onLogout }) {
               </div>
               <div className="hidden sm:block text-left">
                 <p className="text-xs font-bold leading-tight">{user.name}</p>
-                <p className="text-[10px] text-emerald-400 font-semibold">{user.job_title || 'Staff Specialist'} · {user.employee_code}</p>
+                <p className="text-[10px] text-emerald-400 font-semibold">
+                  {isManager ? 'Operations Manager (Attendance Officer)' : (user.job_title || 'Staff Specialist')} · {user.employee_code}
+                </p>
               </div>
             </div>
 
@@ -292,11 +304,19 @@ export default function StaffPortal({ user, onLogout }) {
                 Namaste, {user.name} 👋
               </h1>
               <p className="text-slate-300 text-sm mt-1 max-w-xl">
-                Designation: <span className="font-semibold text-white">{user.job_title || 'Plant Team Specialist'}</span>. Check your daily attendance records, leave approval status, and monthly salary disbursements.
+                Designation: <span className="font-semibold text-white">{isManager ? 'Operations Manager (Attendance Officer)' : (user.job_title || 'Plant Team Specialist')}</span>. Check your daily attendance records, leave approval status, and monthly salary disbursements.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2.5">
+              {isManager && (
+                <button
+                  onClick={() => setActiveTab('kiosk')}
+                  className="bg-cyan-700 hover:bg-cyan-600 text-white font-bold px-4 py-2.5 rounded-2xl shadow-lg transition flex items-center gap-2 text-sm border border-cyan-400/30"
+                >
+                  <ScanFace size={16} /> Take Worker Attendance (Kiosk)
+                </button>
+              )}
               <button
                 onClick={() => setShowApplyModal(true)}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-2xl shadow-lg transition flex items-center gap-2 text-sm"
@@ -314,7 +334,21 @@ export default function StaffPortal({ user, onLogout }) {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-slate-200 mb-6 overflow-x-auto text-sm font-semibold">
+        <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-slate-200 mb-6 overflow-x-auto text-sm font-semibold gap-1">
+          {isManager && (
+            <button
+              onClick={() => setActiveTab('kiosk')}
+              className={`px-4 py-2.5 rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'kiosk' 
+                  ? 'bg-slate-900 text-cyan-300 shadow-sm border border-cyan-500/40 font-bold' 
+                  : 'text-cyan-900 bg-cyan-50/80 hover:bg-cyan-100/90 border border-cyan-200/80'
+              }`}
+            >
+              <ScanFace size={16} className={activeTab === 'kiosk' ? 'text-cyan-300' : 'text-cyan-700'} />
+              <span>Take Worker Attendance</span>
+              <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-black rounded-full uppercase tracking-wider">Manager</span>
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-5 py-2.5 rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
@@ -876,6 +910,36 @@ export default function StaffPortal({ user, onLogout }) {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab 5: MANAGER ATTENDANCE KIOSK */}
+        {activeTab === 'kiosk' && isManager && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 text-white rounded-3xl p-6 border border-cyan-800/40 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                    Manager Attendance Officer
+                  </span>
+                  <span className="text-xs text-slate-400">· VATHAN MINERALS - MINING</span>
+                </div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <ScanFace className="text-cyan-400" size={22} /> Worker Attendance & Biometric Kiosk
+                </h2>
+                <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+                  Logged in as <strong className="text-white">{user.name}</strong> ({user.employee_code || user.role}). You have full authority to mark worker attendance, run real-time camera face recognition, scan Mantra USB fingerprints, and enroll workers.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('overview')}
+                className="self-start md:self-auto px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition flex items-center gap-1.5"
+              >
+                ← Back to Overview
+              </button>
+            </div>
+
+            <AttendanceManager user={user} />
           </div>
         )}
       </main>
