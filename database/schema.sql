@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS employees (
   active BOOLEAN NOT NULL DEFAULT TRUE,
   face_photo MEDIUMTEXT NULL,
   face_descriptor LONGTEXT NULL,
+  fingerprint_image MEDIUMTEXT NULL,
+  fingerprint_template LONGTEXT NULL,
+  fingerprint_quality INT NULL,
+  fingerprint_enrolled_at TIMESTAMP NULL,
+  personal_password_hash VARCHAR(255) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -35,6 +40,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   notes VARCHAR(500),
   verification_type ENUM('manual','face_recognition','fingerprint') DEFAULT 'manual',
   face_snapshot MEDIUMTEXT NULL,
+  fingerprint_snapshot MEDIUMTEXT NULL,
   created_by BIGINT UNSIGNED,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_attendance_employee_date(employee_id, attendance_date),
@@ -228,7 +234,7 @@ CREATE TABLE IF NOT EXISTS fingerprint_credentials (
   credential_id VARCHAR(700) NOT NULL,        -- WebAuthn base64url credential ID
   public_key MEDIUMTEXT NOT NULL,             -- base64-encoded COSE public key
   counter BIGINT UNSIGNED DEFAULT 0,          -- signature counter (replay protection)
-  device_type VARCHAR(50) DEFAULT 'singleDevice',
+  device_type VARCHAR(255) DEFAULT 'singleDevice',
   transports VARCHAR(200) DEFAULT NULL,       -- comma-separated transport hints
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   last_used TIMESTAMP NULL,

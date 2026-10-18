@@ -1364,7 +1364,7 @@ app.post('/api/employees/:id/fingerprint', requireAuth, allowRoles('admin','mana
 
   // Maintain unified record in fingerprint_credentials table
   const credId = `fp_${empId}_${Date.now()}`;
-  const deviceType = scanner_model || 'USB Biometric Scanner';
+  const deviceType = String(scanner_model || 'Mantra MFS100 USB').slice(0, 100);
   await pool.query(
     `INSERT INTO fingerprint_credentials
        (employee_id, credential_id, public_key, counter, device_type, transports, last_used)

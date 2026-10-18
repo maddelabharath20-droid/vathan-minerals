@@ -408,7 +408,7 @@ export default function FingerprintTab({ user, defaultMode = 'mantra' }) {
             fingerprint_image: enrollPreviewImg || generateSyntheticFingerprint(),
             fingerprint_template: 'USB_BIO_TEMPLATE_' + enrollEmpId,
             quality: enrollQualityScore || 85,
-            scanner_model: hardwareStatus.name || 'Mantra MFS100 USB'
+            scanner_model: (mantraInfo.connected || scannerMode === 'mantra') ? 'Mantra MFS100 USB' : String(hardwareStatus.name || 'Mantra MFS100 USB').slice(0, 50)
           })
         });
       }
