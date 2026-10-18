@@ -820,7 +820,7 @@ export default function StaffPortal({ user, onLogout, onBack }) {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                    Manager Attendance Officer
+                    Manager
                   </span>
                   <span className="text-xs text-slate-400">· VATHAN MINERALS - MINING</span>
                 </div>

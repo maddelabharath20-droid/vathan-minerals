@@ -236,7 +236,7 @@ function Auth({onLogin}) {
 
   const rolesList = [
     ['admin', 'Prop Account · Proprietor (MADDELA VENKATA SUBBAIAH)'],
-    ['manager', 'Operations Manager (Taking Attendance & Plant Operations)'],
+    ['manager', 'Manager (Taking Attendance)'],
     ['hr', 'HR & People'],
     ['production', 'Production & Milling'],
     ['dispatch', 'Logistics & Dispatch'],
@@ -481,7 +481,7 @@ function Auth({onLogin}) {
                   </div>
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Proprietor & Manager Login</h2>
-                    <p className="text-slate-500 text-xs">Prop Account (Prop : MADDELA VENKATA SUBBAIAH) · Operations Managers</p>
+                    <p className="text-slate-500 text-xs">Prop Account (Prop : MADDELA VENKATA SUBBAIAH) · Managers</p>
                   </div>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
@@ -1417,7 +1417,7 @@ function Reports() {
     : isBharathDev
       ? 'Developer & System Maintainer'
       : isManagerOnly
-        ? 'Plant Manager (Attendance Officer)'
+        ? 'Manager'
         : `${user?.role || 'User'} Account`;
 
   useEffect(()=>{
