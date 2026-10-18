@@ -24,8 +24,12 @@ const fmtTime = (t) => {
   }
 };
 
-export default function AttendanceManager({ user }) {
-  const [tab, setTab] = useState('kiosk'); // 'kiosk' | 'logs' | 'enrolled'
+export default function AttendanceManager({ user, initialTab = 'kiosk' }) {
+  const [tab, setTab] = useState(initialTab); // 'kiosk' | 'logs' | 'enrolled' | 'fingerprint'
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
   const [employees, setEmployees] = useState([]);
   const [enrolledFaces, setEnrolledFaces] = useState([]);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
@@ -399,7 +403,7 @@ export default function AttendanceManager({ user }) {
               tab === 'fingerprint' ? 'bg-violet-800 text-white ring-2 ring-violet-400' : 'bg-violet-700 hover:bg-violet-800 text-white'
             }`}
           >
-            <Fingerprint size={16} /> Fingerprint Kiosk
+            <Fingerprint size={16} /> Mantra MFS100 Kiosk
           </button>
           <button 
             onClick={() => setEnrollModal(true)}
@@ -501,7 +505,7 @@ export default function AttendanceManager({ user }) {
             tab === 'fingerprint' ? 'border-violet-700 text-violet-900 bg-violet-50/50' : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Fingerprint size={18} /> Fingerprint Sensor
+          <Fingerprint size={18} /> Mantra MFS100 / Fingerprint
         </button>
       </div>
 

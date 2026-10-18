@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, Factory, Package, ClipboardList, ReceiptText, 
   Truck, ChartNoAxesCombined, LogOut, Menu, X, Plus, RefreshCw, ShieldCheck, 
   Boxes, UserRound, FileText, ScanFace, UserPlus, CalendarCheck, DollarSign, Rotate3d,
-  Smartphone, Phone, Sparkles, Lock, Pencil, Trash2, Edit, HardHat, CheckCircle2, ArrowRight
+  Smartphone, Phone, Sparkles, Lock, Pencil, Trash2, Edit, HardHat, CheckCircle2, ArrowRight, Fingerprint
 } from 'lucide-react';
 import { tryGooglePopup, tryGoogleRedirect, checkRedirectResult, GOOGLE_CLIENT_ID } from './firebase';
 
@@ -18,6 +18,7 @@ const nav = [
   ['Dashboard','/dashboard',LayoutDashboard],
   ['Employees','/employees',Users],
   ['Attendance','/attendance',ScanFace],
+  ['Mantra Device','/mantra',Fingerprint],
   ['Leave Approvals','/leave-approvals',CalendarCheck],
   ['Staff Salaries','/salaries',DollarSign],
   ['3D Mining View','/plant-3d',Rotate3d],
@@ -1463,6 +1464,7 @@ function Reports() {
           {active==='Dashboard'?<Dashboard user={user}/>:
            active==='Reports'?<Reports/>:
            active==='Attendance'?<AttendanceManager user={user}/>:
+           active==='Mantra Device'?<AttendanceManager user={user} initialTab="fingerprint"/>:
            active==='Leave Approvals'?<LeaveApprovalManager/>:
            active==='Staff Salaries'?<SalariesManager/>:
            (active==='3D Mining View' || active==='Plant 3D View')?<div className="p-4 sm:p-6 bg-slate-950 rounded-3xl shadow-xl"><PlantShowcase3D /></div>:

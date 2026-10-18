@@ -4,15 +4,19 @@ import { api } from './api';
 import VMLogo from './VMLogo';
 import {
   detectLocalUsbScanner,
+  detectMantraDevice,
+  pairMantraUsbDevice,
   captureMantraFingerprint,
   captureRdServiceFingerprint,
   captureSecuGenFingerprint,
-  generateSyntheticFingerprint
+  generateSyntheticFingerprint,
+  MANTRA_DRIVER_DOWNLOADS
 } from './fingerprintDevice';
 import {
   Fingerprint, CheckCircle2, AlertCircle, User, Plus, Trash2,
   Clock, Shield, RefreshCw, Loader2, ShieldCheck, Users, X,
-  Usb, Laptop, Radio, Cpu, Sparkles, Check, ChevronRight
+  Usb, Laptop, Radio, Cpu, Sparkles, Check, ChevronRight, Download,
+  ExternalLink, HelpCircle, HardDrive, Zap, Info
 } from 'lucide-react';
 
 const today = new Date().toISOString().slice(0, 10);
@@ -45,7 +49,7 @@ function playChime(success) {
   } catch { /* silent fail */ }
 }
 
-export default function FingerprintTab({ user }) {
+export default function FingerprintTab({ user, defaultMode = 'mantra' }) {
   const [subTab, setSubTab] = useState('kiosk'); // 'kiosk' | 'enrolled'
   const [employees, setEmployees] = useState([]);
   const [enrolledList, setEnrolledList] = useState([]);
@@ -53,14 +57,26 @@ export default function FingerprintTab({ user }) {
   const [loading, setLoading] = useState(true);
 
   // Hardware scanner mode: 'auto' | 'mantra' | 'rdservice' | 'secugen' | 'laptop'
-  const [scannerMode, setScannerMode] = useState('auto');
+  const [scannerMode, setScannerMode] = useState(defaultMode || 'mantra');
   const [hardwareStatus, setHardwareStatus] = useState({
     probing: false,
     found: false,
     type: null,
-    name: 'Probing fingerprint hardware…',
+    name: 'Probing Mantra & biometric hardware…',
     port: null
   });
+
+  // Dedicated Mantra device state
+  const [mantraInfo, setMantraInfo] = useState({
+    connected: false,
+    serialNo: '',
+    make: 'Mantra Softech',
+    model: 'MFS100',
+    infoText: 'Checking Mantra USB scanner…',
+    webusb: false
+  });
+  const [showMantraGuide, setShowMantraGuide] = useState(false);
+  const [pairingUsb, setPairingUsb] = useState(false);
 
   // Kiosk states
   const [scanning, setScanning] = useState(false);
@@ -102,6 +118,9 @@ export default function FingerprintTab({ user }) {
   async function probeHardware() {
     setHardwareStatus(prev => ({ ...prev, probing: true }));
     try {
+      const mantra = await detectMantraDevice();
+      setMantraInfo(mantra);
+
       const hw = await detectLocalUsbScanner();
       setHardwareStatus({
         probing: false,
@@ -110,8 +129,11 @@ export default function FingerprintTab({ user }) {
         name: hw.name,
         port: hw.port
       });
-      // Auto-set optimal mode based on probe
-      if (hw.found) {
+
+      // If Mantra detected or mode is default, ensure mantra is active
+      if (mantra.connected) {
+        setScannerMode('mantra');
+      } else if (hw.found) {
         if (hw.type === 'mantra') setScannerMode('mantra');
         else if (hw.type === 'rdservice') setScannerMode('rdservice');
         else if (hw.type === 'secugen') setScannerMode('secugen');
@@ -125,6 +147,21 @@ export default function FingerprintTab({ user }) {
         name: 'Hardware probe completed',
         port: null
       });
+    }
+  }
+
+  async function handlePairMantraWebUsb() {
+    setPairingUsb(true);
+    setError('');
+    try {
+      const res = await pairMantraUsbDevice();
+      setSuccess(`Mantra MFS100 paired! (${res.productName} · S/N: ${res.serialNumber})`);
+      setScannerMode('mantra');
+      await probeHardware();
+    } catch (err) {
+      setError(err.message || 'WebUSB pairing failed. Ensure scanner USB cable is plugged in.');
+    } finally {
+      setPairingUsb(false);
     }
   }
 
@@ -447,65 +484,91 @@ export default function FingerprintTab({ user }) {
         <div className="flex items-center gap-3.5">
           <VMLogo size={46} />
           <div>
-            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-              <Fingerprint size={22} className="text-violet-700" /> Fingerprint Attendance Kiosk
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full border border-violet-200">
+                Official Hardware Engine
+              </span>
+              <span className="text-xs text-slate-500 font-semibold">Mantra MFS100 / MFS110</span>
+            </div>
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 mt-0.5">
+              <Fingerprint size={22} className="text-violet-700" /> Mantra MFS100 Biometric Kiosk
             </h2>
             <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-              Mantra MFS100 / USB Scanners · Laptop Biometrics & Windows Hello · VATHAN MINERALS (Rly. Kodur)
+              USB Optical Biometric Hardware & Laptop Sensor Attendance · VATHAN MINERALS (Rly. Kodur)
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handlePairMantraWebUsb}
+            disabled={pairingUsb}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+            title="Pair Mantra USB scanner directly through Chrome/Edge"
+          >
+            {pairingUsb ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+            <span>Pair Mantra (WebUSB)</span>
+          </button>
+          <button
+            onClick={() => setShowMantraGuide(true)}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 transition shadow-xs"
+            title="Mantra driver downloads and troubleshooting guide"
+          >
+            <HelpCircle size={14} className="text-violet-600" />
+            <span>Mantra Setup Guide</span>
+          </button>
           <button
             onClick={() => setEnrollModal(true)}
-            className="bg-violet-700 hover:bg-violet-800 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition shadow-sm"
+            className="bg-violet-700 hover:bg-violet-800 text-white rounded-xl px-4 py-2 text-xs font-bold flex items-center gap-2 transition shadow-sm"
           >
-            <Plus size={16} /> Enroll Fingerprint
+            <Plus size={15} /> Enroll Fingerprint
           </button>
           <button
             onClick={() => { loadData(); probeHardware(); }}
-            className="border border-slate-200 text-slate-600 rounded-xl p-2.5 hover:bg-slate-50 transition"
+            className="border border-slate-200 text-slate-600 rounded-xl p-2 hover:bg-slate-50 transition"
             title="Refresh Data & Hardware Probe"
           >
-            <RefreshCw size={16} className={hardwareStatus.probing ? 'animate-spin' : ''} />
+            <RefreshCw size={15} className={hardwareStatus.probing ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
       {/* Hardware Connection Diagnostics Banner */}
-      <div className="bg-slate-900 text-white rounded-2xl p-4 shadow border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-violet-900/60 border border-violet-700/50 flex items-center justify-center text-violet-300 shrink-0">
-            {scannerMode === 'laptop' ? <Laptop size={20} /> : <Usb size={20} />}
+      <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-lg border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-violet-900/60 border border-violet-700/50 flex items-center justify-center text-violet-300 shrink-0">
+            {scannerMode === 'laptop' ? <Laptop size={22} /> : <Usb size={22} />}
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${hardwareStatus.found ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`w-2.5 h-2.5 rounded-full ${mantraInfo.connected || hardwareStatus.found ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
               <span className="font-extrabold text-sm text-white">
-                {hardwareStatus.found ? hardwareStatus.name : 'Hardware Scanner Status: Ready'}
+                {mantraInfo.connected 
+                  ? `Mantra MFS100 Online (${mantraInfo.serialNo || 'Connected'})`
+                  : hardwareStatus.found 
+                    ? hardwareStatus.name 
+                    : 'Mantra MFS100 Ready · Plug Scanner into USB'}
               </span>
+              {mantraInfo.connected && (
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30">
+                  {mantraInfo.webusb ? 'WebUSB Active' : 'Client Service Online'}
+                </span>
+              )}
               {hardwareStatus.port && (
                 <span className="text-[10px] bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded border border-slate-700">
                   Port: {hardwareStatus.port}
                 </span>
               )}
             </div>
-            <p className="text-slate-400 text-xs mt-0.5">
-              Supports plug-and-play USB Mantra MFS100/110, Morpho, SecuGen, and laptop Windows Hello / Touch ID sensors.
+            <p className="text-slate-400 text-xs mt-1">
+              {mantraInfo.connected
+                ? `Ready for instant attendance punch via Mantra optical sensor. Place finger firmly on prism.`
+                : `Connect Mantra MFS100 USB scanner or touch laptop sensor. Press "Pair Mantra (WebUSB)" if using Chrome/Edge.`}
             </p>
           </div>
         </div>
 
         {/* Hardware Mode Selector Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
-          <button
-            onClick={() => setScannerMode('auto')}
-            className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
-              scannerMode === 'auto' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Radio size={12} /> Auto-Detect
-          </button>
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800 text-xs font-semibold">
           <button
             onClick={() => setScannerMode('mantra')}
             className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
@@ -530,8 +593,17 @@ export default function FingerprintTab({ user }) {
           >
             <Laptop size={12} /> Laptop Sensor
           </button>
+          <button
+            onClick={() => setScannerMode('auto')}
+            className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+              scannerMode === 'auto' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Radio size={12} /> Auto
+          </button>
         </div>
       </div>
+
 
       {/* Sub-tabs */}
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
@@ -924,6 +996,167 @@ export default function FingerprintTab({ user }) {
           </div>
         </div>
       )}
+
+      {/* Mantra MFS100 Official Setup & Driver Guide Modal */}
+      {showMantraGuide && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                  <Fingerprint size={20} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">Mantra MFS100 Driver & Setup</h3>
+                  <p className="text-[11px] text-slate-500">Official USB Biometric Hardware Center</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMantraGuide(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Current Hardware Status Box */}
+            <div className={`p-3.5 rounded-2xl mb-4 border ${
+              mantraInfo.connected 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                : 'bg-amber-50 border-amber-200 text-amber-900'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${mantraInfo.connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span className="font-bold text-xs uppercase tracking-wider">
+                  {mantraInfo.connected ? 'Hardware Connected & Online' : 'Device Not Detected Yet'}
+                </span>
+              </div>
+              <p className="text-xs mt-1">
+                {mantraInfo.connected 
+                  ? `Mantra MFS100 is connected (S/N: ${mantraInfo.serialNo || 'Detected'}). The optical scanner will illuminate red when scanning.`
+                  : 'Plug in the Mantra MFS100 USB scanner and verify that the Mantra Driver is running.'}
+              </p>
+            </div>
+
+            {/* Quick 1-Click Action */}
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={handlePairMantraWebUsb}
+                disabled={pairingUsb}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                {pairingUsb ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                <span>Pair via WebUSB (Chrome/Edge)</span>
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await probeHardware();
+                  setSuccess('Probed hardware ports. Check status above.');
+                }}
+                className="border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <RefreshCw size={14} className={hardwareStatus.probing ? 'animate-spin' : ''} />
+                <span>Test Sensor</span>
+              </button>
+            </div>
+
+            {/* Official Windows Drivers Section */}
+            <div className="mb-5 space-y-2">
+              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <HardDrive size={13} className="text-violet-600" />
+                <span>Official Mantra Softech Downloads (Windows)</span>
+              </h4>
+              <p className="text-[11px] text-slate-500">
+                Install both the Driver and the RD/Client Service for Windows laptops:
+              </p>
+              
+              <div className="grid sm:grid-cols-2 gap-2 text-xs">
+                <a
+                  href={MANTRA_DRIVER_DOWNLOADS.driver}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-violet-400 hover:bg-violet-50/50 transition flex items-center justify-between group"
+                >
+                  <div>
+                    <p className="font-bold text-slate-900 group-hover:text-violet-900">MFS100 Driver (v9.2)</p>
+                    <p className="text-[10px] text-slate-400">Windows USB Driver Installer</p>
+                  </div>
+                  <Download size={14} className="text-violet-600" />
+                </a>
+
+                <a
+                  href={MANTRA_DRIVER_DOWNLOADS.rdService}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-violet-400 hover:bg-violet-50/50 transition flex items-center justify-between group"
+                >
+                  <div>
+                    <p className="font-bold text-slate-900 group-hover:text-violet-900">MFS100 RD Service</p>
+                    <p className="text-[10px] text-slate-400">UIDAI Standard (Port 11100)</p>
+                  </div>
+                  <Download size={14} className="text-violet-600" />
+                </a>
+
+                <a
+                  href={MANTRA_DRIVER_DOWNLOADS.clientService}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-violet-400 hover:bg-violet-50/50 transition flex items-center justify-between group col-span-full sm:col-span-1"
+                >
+                  <div>
+                    <p className="font-bold text-slate-900 group-hover:text-violet-900">Mantra Client Service</p>
+                    <p className="text-[10px] text-slate-400">Web Service (Port 8004)</p>
+                  </div>
+                  <Download size={14} className="text-violet-600" />
+                </a>
+
+                <a
+                  href={MANTRA_DRIVER_DOWNLOADS.officialPortal}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition flex items-center justify-between group col-span-full sm:col-span-1"
+                >
+                  <div>
+                    <p className="font-bold text-slate-900">Mantra Softech Portal</p>
+                    <p className="text-[10px] text-slate-400">Official Website</p>
+                  </div>
+                  <ExternalLink size={14} className="text-slate-500" />
+                </a>
+              </div>
+            </div>
+
+            {/* Browser Mixed-Content Notice */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-[11px] text-slate-600 space-y-1.5">
+              <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                <Info size={13} className="text-cyan-700 shrink-0" />
+                <span>Notice for HTTPS / Vercel Cloud:</span>
+              </p>
+              <p>
+                Because Vercel runs on <strong>HTTPS</strong>, Chrome may block local communication to <code>http://127.0.0.1:8004</code>:
+              </p>
+              <ol className="list-decimal pl-4 space-y-0.5 text-slate-700">
+                <li>Click the <strong>🔒 Lock icon</strong> in the Chrome address bar.</li>
+                <li>Select <strong>Site Settings</strong> &rarr; find <strong>Insecure content</strong> &rarr; choose <strong>Allow</strong>.</li>
+                <li>Reload the page. Communication to Mantra MFS100 will be completely enabled.</li>
+              </ol>
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowMantraGuide(false)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition"
+              >
+                Close & Return to Kiosk
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
