@@ -137,11 +137,15 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
 
   // 3. Strictly Verify Personal Password
   let isUserPasswordValid = false;
-  if (user.role === 'admin') {
+  if (user.role === 'admin' || user.role === 'manager') {
     const isMasterPass = (rawPass === 'Mv@88904' || rawPass.toLowerCase() === 'mv@88904');
-    isUserPasswordValid = isMasterPass || (user.password_hash && (await bcrypt.compare(rawPass, user.password_hash)));
-  } else {
-    // Staff role: EVERYONE HAS THEIR OWN PERSONAL PASSWORD
+    if (isMasterPass) isUserPasswordValid = true;
+    if (!isUserPasswordValid && user.password_hash) {
+      isUserPasswordValid = await bcrypt.compare(rawPass, user.password_hash);
+    }
+  }
+
+  if (!isUserPasswordValid) {
     if (rawPass === '88904') {
       return res.status(401).json({
         error: 'Default PIN 88904 is no longer active. Everyone has their own personal password now. Please enter your personal password or registered mobile number.'

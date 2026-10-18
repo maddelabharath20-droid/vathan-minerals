@@ -16,9 +16,9 @@ import { tryGooglePopup, tryGoogleRedirect, checkRedirectResult, GOOGLE_CLIENT_I
 
 const nav = [
   ['Dashboard','/dashboard',LayoutDashboard],
-  ['Employees','/employees',Users],
   ['Attendance','/attendance',ScanFace],
   ['Mantra Device','/mantra',Fingerprint],
+  ['Employees','/employees',Users],
   ['Leave Approvals','/leave-approvals',CalendarCheck],
   ['Staff Salaries','/salaries',DollarSign],
   ['3D Mining View','/plant-3d',Rotate3d],
@@ -1223,7 +1223,7 @@ function Module({module,role}) {
    </div>
  );
 }
-function Dashboard({user}) {
+function Dashboard({user, onNavigate}) {
  const [d,setD]=useState(null),[error,setError]=useState(''),[from,setFrom]=useState(today),[to,setTo]=useState(today),[loading,setLoading]=useState(false);
  async function load(){setLoading(true);try{setD(await api(`/dashboard?from=${from}&to=${to}`));setError('')}catch(e){setError(e.message)}finally{setLoading(false)}}
  useEffect(()=>{load()},[]);
@@ -1280,6 +1280,41 @@ function Dashboard({user}) {
       </div>
     </div>
     <PlantShowcase3D />
+  </div>
+
+  {/* Manager Attendance Quick-Action Panel */}
+  <div className="bg-gradient-to-r from-slate-900 via-cyan-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-cyan-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="flex items-center gap-4">
+      <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center justify-center shrink-0">
+        <ScanFace size={26} />
+      </div>
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-slate-950">
+            Attendance Taking Enabled
+          </span>
+          <span className="text-xs text-slate-400">· Manager Attendance Privileges</span>
+        </div>
+        <h3 className="text-lg font-black text-white mt-1">Take Worker Attendance Today</h3>
+        <p className="text-xs text-slate-300">
+          Fast-access Face Recognition camera scanner & Mantra MFS100 USB optical fingerprint kiosk.
+        </p>
+      </div>
+    </div>
+    <div className="flex flex-wrap gap-2.5">
+      <button
+        onClick={() => onNavigate && onNavigate('Attendance')}
+        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg transition"
+      >
+        <ScanFace size={16} /> Open Face Kiosk
+      </button>
+      <button
+        onClick={() => onNavigate && onNavigate('Mantra Device')}
+        className="px-4 py-2.5 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg transition"
+      >
+        <Fingerprint size={16} /> Mantra Fingerprint Kiosk
+      </button>
+    </div>
   </div>
 
   <div className="flex flex-wrap justify-between items-end gap-3 mb-4">
@@ -1373,14 +1408,32 @@ function Reports() {
       </div>
     </div>
   );
+  const [viewMode, setViewMode] = useState('dashboard');
   if(!user)return <Auth onLogin={handleLogin}/>;
   const isProp = Boolean(
     user?.role === 'admin' ||
     (user?.name && user.name.toLowerCase().includes('subbaiah')) ||
     (user?.email && (user.email.toLowerCase().includes('subbaiah') || user.email.includes('vathanminerals6336') || user.email.includes('owner.proprietor')))
   );
+  const isManagerUser = Boolean(
+    user?.role === 'manager' ||
+    user?.role === 'admin' ||
+    isProp ||
+    ['009', '010', 'B-001', '002', '005'].includes(user?.employee_code) ||
+    user?.job_title?.toLowerCase().includes('manager') ||
+    user?.job_title?.toLowerCase().includes('supervisor') ||
+    user?.job_title?.toLowerCase().includes('incharge')
+  );
   const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : user.name;
-  if(user.role === 'staff' && !isProp) return <StaffPortal user={user} onLogout={logout} />;
+  
+  if (user.role === 'staff' && !isProp && !isManagerUser) {
+    return <StaffPortal user={user} onLogout={logout} />;
+  }
+
+  if (viewMode === 'staff_portal') {
+    return <StaffPortal user={user} onLogout={logout} onBack={() => setViewMode('dashboard')} />;
+  }
+
   const module=Object.keys(configs).find(k=>configs[k].title===active);
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1418,6 +1471,18 @@ function Reports() {
           <div className="pt-4 px-1 pb-2">
             <LeadershipBadge compact={true} dark={true} />
           </div>
+
+          {(isManagerUser || isProp) && (
+            <div className="pt-2 px-1">
+              <button
+                onClick={() => setViewMode('staff_portal')}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/20 transition"
+              >
+                <span className="flex items-center gap-2"><FileText size={15}/> Personal Salary & Slips</span>
+                <ArrowRight size={13}/>
+              </button>
+            </div>
+          )}
         </nav>
 
         {/* User Profile & Sign Out */}
@@ -1479,7 +1544,7 @@ function Reports() {
         </header>
 
         <div className="p-5 sm:p-8 max-w-[1600px] mx-auto">
-          {active==='Dashboard'?<Dashboard user={user}/>:
+          {active==='Dashboard'?<Dashboard user={user} onNavigate={setActive}/>:
            active==='Reports'?<Reports/>:
            active==='Attendance'?<AttendanceManager user={user}/>:
            active==='Mantra Device'?<AttendanceManager user={user} initialTab="fingerprint"/>:

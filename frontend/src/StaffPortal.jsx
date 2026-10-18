@@ -4,7 +4,7 @@ import VMLogo from './VMLogo';
 import { 
   Calendar, Clock, DollarSign, FileText, CheckCircle2, XCircle, 
   AlertCircle, Plus, RefreshCw, Printer, User, LogOut, ArrowRight,
-  TrendingUp, Sparkles, Send, ShieldCheck, Lock, Fingerprint, Loader2, Smartphone, ScanFace
+  TrendingUp, Sparkles, Send, ShieldCheck, Lock, Fingerprint, Loader2, Smartphone, ScanFace, LayoutDashboard
 } from 'lucide-react';
 import AttendanceManager from './AttendanceManager';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
@@ -28,7 +28,7 @@ function playBiometricChime(success) {
   } catch (_) {}
 }
 
-export default function StaffPortal({ user, onLogout }) {
+export default function StaffPortal({ user, onLogout, onBack }) {
   const isProp = Boolean(
     user?.role === 'admin' ||
     (user?.name && user.name.toLowerCase().includes('subbaiah')) ||
@@ -252,6 +252,18 @@ export default function StaffPortal({ user, onLogout }) {
           </div>
 
           <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow transition flex items-center gap-1.5"
+                title="Return to Operations Dashboard"
+              >
+                <LayoutDashboard size={14} />
+                <span className="hidden sm:inline">Operations Dashboard</span>
+                <span className="sm:hidden">Dashboard</span>
+              </button>
+            )}
+
             <button
               onClick={loadStaffData}
               disabled={refreshing}
@@ -316,6 +328,14 @@ export default function StaffPortal({ user, onLogout }) {
             </div>
 
             <div className="flex flex-wrap gap-2.5">
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-2xl shadow-lg transition flex items-center gap-2 text-sm border border-emerald-400/30"
+                >
+                  <LayoutDashboard size={16} /> Operations Dashboard
+                </button>
+              )}
               {isManager && (
                 <button
                   onClick={() => setActiveTab('kiosk')}
