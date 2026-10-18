@@ -4,15 +4,12 @@
   "description": "VATHAN MINERALS - Mining, Processing & Biometric Operations Platform",
   "private": true,
   "scripts": {
-    "build": "node -e \"console.log('Serving prebuilt production bundle from dist/')\"",
+    "build": "echo Static deployment ready in dist",
     "build:local": "node scripts/build.js",
     "start": "node backend/src/server.js",
     "seed": "node backend/src/seedAdmin.js"
   },
   "engines": {
     "node": ">=20.0.0"
-  },
-  "dependencies": {
-    "localtunnel": "^2.0.2"
   }
 }
