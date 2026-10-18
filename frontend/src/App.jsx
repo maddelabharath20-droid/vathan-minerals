@@ -1424,8 +1424,15 @@ function Reports() {
     user?.job_title?.toLowerCase().includes('supervisor') ||
     user?.job_title?.toLowerCase().includes('incharge')
   );
+  const isManagerOnly = isManagerUser && !isProp && user?.role !== 'admin';
   const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : user.name;
   
+  useEffect(() => {
+    if (isManagerOnly && active !== 'Attendance' && active !== 'Mantra Device') {
+      setActive('Attendance');
+    }
+  }, [isManagerOnly, active]);
+
   if (user.role === 'staff' && !isProp && !isManagerUser) {
     return <StaffPortal user={user} onLogout={logout} />;
   }
@@ -1433,6 +1440,14 @@ function Reports() {
   if (viewMode === 'staff_portal') {
     return <StaffPortal user={user} onLogout={logout} onBack={() => setViewMode('dashboard')} />;
   }
+
+  const visibleNav = isManagerOnly 
+    ? nav.filter(([label]) => label === 'Attendance' || label === 'Mantra Device')
+    : nav;
+
+  const currentActiveTitle = isManagerOnly 
+    ? (active === 'Mantra Device' ? 'Mantra Device' : 'Attendance') 
+    : active;
 
   const module=Object.keys(configs).find(k=>configs[k].title===active);
   return (
@@ -1454,13 +1469,15 @@ function Reports() {
 
         {/* Workspace Navigation */}
         <nav className="p-3 flex-1 overflow-y-auto space-y-1">
-          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-extrabold px-3 py-2">Workspace</p>
-          {nav.map(([label,path,Icon])=>(
+          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-extrabold px-3 py-2">
+            {isManagerOnly ? 'Attendance Modules' : 'Workspace'}
+          </p>
+          {visibleNav.map(([label,path,Icon])=>(
             <button
               key={label}
               onClick={()=>{setActive(label);setMobile(false)}}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
-                active===label ? 'bg-emerald-700 text-white shadow-md' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                currentActiveTitle===label ? 'bg-emerald-700 text-white shadow-md' : 'text-slate-300 hover:bg-white/5 hover:text-white'
               }`}
             >
               <Icon size={18}/>{label}
@@ -1472,7 +1489,7 @@ function Reports() {
             <LeadershipBadge compact={true} dark={true} />
           </div>
 
-          {(isManagerUser || isProp) && (
+          {isProp && (
             <div className="pt-2 px-1">
               <button
                 onClick={() => setViewMode('staff_portal')}
@@ -1491,7 +1508,7 @@ function Reports() {
           <div className="text-[11px] font-black uppercase tracking-wider text-emerald-400 mt-0.5">
             {isProp 
               ? 'Proprietor & Admin (Prop Account)' 
-              : user.role === 'manager' 
+              : isManagerOnly 
                 ? 'Plant Manager (Attendance Officer)' 
                 : `${user.role} Account`}
           </div>
@@ -1517,9 +1534,9 @@ function Reports() {
             </div>
             <div>
               <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">
-                VATHAN MINERALS · RLY. KODUR / {active}
+                VATHAN MINERALS · RLY. KODUR / {currentActiveTitle}
               </p>
-              <h1 className="font-black text-lg text-slate-900">{active}</h1>
+              <h1 className="font-black text-lg text-slate-900">{currentActiveTitle}</h1>
             </div>
           </div>
 
@@ -1529,8 +1546,8 @@ function Reports() {
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block self-end mt-0.5">
                 {isProp 
                   ? 'Proprietor & Admin (Prop Account)' 
-                  : user.role === 'manager' 
-                    ? 'Operations Manager · Taking Attendance' 
+                  : isManagerOnly 
+                    ? 'Plant Manager (Attendance Officer)' 
                     : user.role}
               </span>
             </div>
@@ -1544,14 +1561,22 @@ function Reports() {
         </header>
 
         <div className="p-5 sm:p-8 max-w-[1600px] mx-auto">
-          {active==='Dashboard'?<Dashboard user={user} onNavigate={setActive}/>:
-           active==='Reports'?<Reports/>:
-           active==='Attendance'?<AttendanceManager user={user}/>:
-           active==='Mantra Device'?<AttendanceManager user={user} initialTab="fingerprint"/>:
-           active==='Leave Approvals'?<LeaveApprovalManager/>:
-           active==='Staff Salaries'?<SalariesManager/>:
-           (active==='3D Mining View' || active==='Plant 3D View')?<div className="p-4 sm:p-6 bg-slate-950 rounded-3xl shadow-xl"><PlantShowcase3D /></div>:
-           module?<Module key={module} module={module} role={user.role}/>:<div>Unknown page</div>}
+          {isManagerOnly ? (
+            active === 'Mantra Device' ? (
+              <AttendanceManager user={user} initialTab="fingerprint"/>
+            ) : (
+              <AttendanceManager user={user}/>
+            )
+          ) : (
+            active==='Dashboard'?<Dashboard user={user} onNavigate={setActive}/>:
+            active==='Reports'?<Reports/>:
+            active==='Attendance'?<AttendanceManager user={user}/>:
+            active==='Mantra Device'?<AttendanceManager user={user} initialTab="fingerprint"/>:
+            active==='Leave Approvals'?<LeaveApprovalManager/>:
+            active==='Staff Salaries'?<SalariesManager/>:
+            (active==='3D Mining View' || active==='Plant 3D View')?<div className="p-4 sm:p-6 bg-slate-950 rounded-3xl shadow-xl"><PlantShowcase3D /></div>:
+            module?<Module key={module} module={module} role={user.role}/>:<div>Unknown page</div>
+          )}
         </div>
       </main>
     </div>
