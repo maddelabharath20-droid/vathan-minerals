@@ -90,6 +90,15 @@ function Auth({onLogin}) {
   const [staffPassword, setStaffPassword] = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null);
 
+  // Staff personal password reset modal state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetCode, setResetCode] = useState('');
+  const [resetPhone, setResetPhone] = useState('');
+  const [resetNewPass, setResetNewPass] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetMsg, setResetMsg] = useState('');
+  const [resetErr, setResetErr] = useState('');
+
   const [showMobile3D, setShowMobile3D] = useState(false);
 
   // Check for returning Google redirect login
@@ -298,9 +307,37 @@ function Auth({onLogin}) {
         onLogin(d.user, d.token);
       }
     } catch (err) {
-      setError(err.message || 'Staff login failed. Please verify your Employee Code and PIN (Default: 88904).');
+      setError(err.message || 'Staff login failed. Please verify your Employee Code and personal password.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleStaffResetPassword(e) {
+    e.preventDefault();
+    setResetErr('');
+    setResetMsg('');
+    setResetBusy(true);
+    try {
+      const res = await api('/auth/staff-reset-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          employeeCode: resetCode,
+          phoneOrVerification: resetPhone,
+          newPassword: resetNewPass
+        })
+      });
+      setResetMsg(res.message || 'Personal password updated! You can now log in.');
+      setStaffCode(resetCode);
+      setStaffPassword(resetNewPass);
+      setTimeout(() => {
+        setShowResetModal(false);
+        setResetMsg('');
+      }, 2000);
+    } catch (err) {
+      setResetErr(err.message || 'Failed to update personal password. Verify your Employee Code and registered mobile number.');
+    } finally {
+      setResetBusy(false);
     }
   }
 
@@ -671,13 +708,23 @@ function Auth({onLogin}) {
                 </div>
               </div>
 
-              {/* Staff PIN / Password */}
+              {/* Personal Password */}
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">Staff PIN / Password</label>
-                  <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    PIN: 88904
-                  </span>
+                  <label className="block text-xs font-semibold text-slate-700">Personal Password</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetCode(staffCode);
+                      setResetErr('');
+                      setResetMsg('');
+                      setShowResetModal(true);
+                    }}
+                    className="text-[11px] text-emerald-600 hover:text-emerald-800 font-bold hover:underline flex items-center gap-1"
+                  >
+                    <Lock size={11} className="text-emerald-600 shrink-0" />
+                    <span>Set / Change Password</span>
+                  </button>
                 </div>
                 <input
                   className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold tracking-wider"
@@ -687,12 +734,12 @@ function Auth({onLogin}) {
                     setStaffPassword(e.target.value);
                     setError('');
                   }}
-                  placeholder="Enter your PIN or password"
+                  placeholder="Enter your personal password"
                   required
                 />
                 <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
-                  <Lock size={11} className="text-emerald-600 shrink-0" />
-                  <span>All employees can sign in with PIN <strong className="text-slate-800">88904</strong> or personal password</span>
+                  <ShieldCheck size={12} className="text-emerald-600 shrink-0" />
+                  <span>Each employee has their own personal password or registered mobile number</span>
                 </p>
               </div>
 
@@ -748,11 +795,103 @@ function Auth({onLogin}) {
               <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
                 <p className="font-semibold text-slate-800 flex items-center gap-1.5">
                   <CheckCircle2 size={13} className="text-emerald-600" />
-                  Instant Staff Access
+                  <span>Secure Personal Staff Access</span>
                 </p>
-                <p>Access your Attendance, Daily Logs, Leave Requests, and Monthly Payslips anytime.</p>
+                <p>Sign in with your personal password or registered mobile number to manage your attendance and leaves.</p>
               </div>
             </form>
+          )}
+
+          {/* Staff Personal Password Reset Modal */}
+          {showResetModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <Lock size={16} />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-sm">Set Personal Password</h3>
+                      <p className="text-[10px] text-slate-500">Every staff member has their own pass</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowResetModal(false); setResetErr(''); setResetMsg(''); }}
+                    className="text-slate-400 hover:text-slate-600 font-bold text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {resetErr && (
+                  <div className="bg-red-50 text-red-700 p-2.5 rounded-xl text-xs mb-3 border border-red-200">
+                    {resetErr}
+                  </div>
+                )}
+                {resetMsg && (
+                  <div className="bg-emerald-50 text-emerald-800 p-2.5 rounded-xl text-xs mb-3 border border-emerald-200 font-medium">
+                    {resetMsg}
+                  </div>
+                )}
+
+                <form onSubmit={handleStaffResetPassword} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Employee Code</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 001, 005, 002"
+                      value={resetCode}
+                      onChange={e => setResetCode(e.target.value)}
+                      className="w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Registered Mobile Number</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter 10-digit mobile number"
+                      value={resetPhone}
+                      onChange={e => setResetPhone(e.target.value)}
+                      className="w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">New Personal Password</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Enter new personal password (min 4 chars)"
+                      value={resetNewPass}
+                      onChange={e => setResetNewPass(e.target.value)}
+                      className="w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowResetModal(false)}
+                      className="flex-1 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={resetBusy}
+                      className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm disabled:opacity-60"
+                    >
+                      {resetBusy ? 'Saving…' : 'Save Password'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
         </div>
       </div>

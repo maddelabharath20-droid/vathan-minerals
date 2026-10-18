@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://doors-strain-without-hostel.trycloudflare.com/api/:path*"
+      "destination": "https://denver-playstation-spice-topics.trycloudflare.com/api/:path*"
     },
     {
       "source": "/((?!assets/|.*\\..*).*)",

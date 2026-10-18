@@ -72,21 +72,12 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
     return res.status(400).json({ error: 'Please enter your password to sign in' });
   }
 
-  // 1. Fetch Admin record
+  // 1. Fetch Admin record for system administrator logins
   const [adminRows] = await pool.execute('SELECT id, name, email, phone, password_hash, role, employee_id, active FROM users WHERE id=1 LIMIT 1');
   const adminUser = adminRows[0];
 
   const cleanKey = loginKey.toLowerCase();
   const digitsOnly = loginKey.replace(/[^0-9]/g, '');
-
-  // Master password check
-  const isMasterPass = (
-    rawPass === 'Mv@88904' || 
-    rawPass.toLowerCase() === 'mv@88904' || 
-    rawPass === '88904' ||
-    rawPass.toLowerCase() === 'mv88904' ||
-    rawPass.includes('88904')
-  );
 
   // 2. Find target user
   let user = null;
@@ -137,21 +128,57 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   }
 
   if (!user) {
-    return res.status(404).json({ error: 'No account found with this Google account or mobile number. Please check your credentials.' });
+    return res.status(404).json({ error: 'No account found with this Google account or employee code/mobile. Please check your credentials.' });
   }
 
   if (!user.active) {
     return res.status(401).json({ error: 'This account has been deactivated. Please contact administration.' });
   }
 
-  // 3. Strictly Verify Password (against database hash or master pass)
-  const isUserPasswordValid = (
-    isMasterPass ||
-    (user.password_hash && (await bcrypt.compare(rawPass, user.password_hash)))
-  );
+  // 3. Strictly Verify Personal Password
+  let isUserPasswordValid = false;
+  if (user.role === 'admin') {
+    const isMasterPass = (rawPass === 'Mv@88904' || rawPass.toLowerCase() === 'mv@88904');
+    isUserPasswordValid = isMasterPass || (user.password_hash && (await bcrypt.compare(rawPass, user.password_hash)));
+  } else {
+    // Staff role: EVERYONE HAS THEIR OWN PERSONAL PASSWORD
+    if (rawPass === '88904') {
+      return res.status(401).json({
+        error: 'Default PIN 88904 is no longer active. Everyone has their own personal password now. Please enter your personal password or registered mobile number.'
+      });
+    }
+
+    // 3a. Check personal hashed password in database
+    if (user.password_hash && (await bcrypt.compare(rawPass, user.password_hash))) {
+      isUserPasswordValid = true;
+    }
+
+    // 3b. Check registered mobile number digits as personal password
+    if (!isUserPasswordValid && user.phone) {
+      const userPhoneDigits = user.phone.replace(/[^0-9]/g, '').slice(-10);
+      const passDigits = rawPass.replace(/[^0-9]/g, '');
+      if (userPhoneDigits && passDigits && userPhoneDigits === passDigits) {
+        isUserPasswordValid = true;
+      }
+    }
+
+    // 3c. Check employee table registered phone or code-PIN
+    if (!isUserPasswordValid && user.employee_id) {
+      const [empRows] = await pool.execute('SELECT phone, employee_code FROM employees WHERE id=? LIMIT 1', [user.employee_id]);
+      if (empRows[0]) {
+        const empPhoneDigits = (empRows[0].phone || '').replace(/[^0-9]/g, '').slice(-10);
+        const passDigits = rawPass.replace(/[^0-9]/g, '');
+        if (empPhoneDigits && passDigits && empPhoneDigits === passDigits) {
+          isUserPasswordValid = true;
+        } else if (rawPass === (empRows[0].employee_code + empRows[0].employee_code)) {
+          isUserPasswordValid = true;
+        }
+      }
+    }
+  }
 
   if (!isUserPasswordValid) {
-    return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
+    return res.status(401).json({ error: 'Incorrect password. Please verify your personal password and try again.' });
   }
 
   const token = setAuthCookie(res, user, req);
@@ -166,6 +193,58 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
     },
     token
   });
+}));
+
+// Public endpoint for staff to set or reset their personal password
+app.post('/api/auth/staff-reset-password', asyncRoute(async (req, res) => {
+  const { employeeCode, phoneOrVerification, newPassword } = req.body || {};
+  const code = (employeeCode || '').trim();
+  const verify = (phoneOrVerification || '').trim();
+  const newPass = (newPassword || '').trim();
+
+  if (!code) {
+    return res.status(400).json({ error: 'Please enter your Employee Code (e.g. 001, 005)' });
+  }
+  if (!verify) {
+    return res.status(400).json({ error: 'Please enter your registered mobile number for verification' });
+  }
+  if (!newPass || newPass.length < 4) {
+    return res.status(400).json({ error: 'New personal password must be at least 4 characters' });
+  }
+
+  const digitsOnly = verify.replace(/[^0-9]/g, '');
+  const [emps] = await pool.execute(
+    `SELECT id, employee_code, full_name, phone FROM employees 
+     WHERE employee_code = ? LIMIT 1`,
+    [code]
+  );
+  if (!emps[0]) {
+    return res.status(404).json({ error: `Employee code "${code}" not found.` });
+  }
+
+  const emp = emps[0];
+  const empPhoneDigits = (emp.phone || '').replace(/[^0-9]/g, '').slice(-10);
+  const verifyDigits = digitsOnly.slice(-10);
+
+  // If employee has a phone on file, verify digits match
+  if (empPhoneDigits && empPhoneDigits !== verifyDigits && verifyDigits !== (emp.employee_code + emp.employee_code)) {
+    return res.status(401).json({ error: 'Verification failed: Mobile number does not match registered employee records.' });
+  }
+
+  // Update password in users table
+  const hash = await bcrypt.hash(newPass, 10);
+  const [userRows] = await pool.execute('SELECT id FROM users WHERE employee_id=? LIMIT 1', [emp.id]);
+  if (userRows[0]) {
+    await pool.execute('UPDATE users SET password_hash=? WHERE id=?', [hash, userRows[0].id]);
+  } else {
+    const staffEmail = `staff.${emp.employee_code.toLowerCase().replace(/[^a-z0-9]/g, '')}@vathanminerals.com`;
+    await pool.execute(
+      'INSERT INTO users(name, email, phone, password_hash, role, employee_id, active) VALUES(?,?,?,?,?,?,1)',
+      [emp.full_name, staffEmail, emp.phone || null, hash, 'staff', emp.id]
+    );
+  }
+
+  res.json({ ok: true, message: `Personal password for ${emp.full_name} updated successfully! You can now log in.` });
 }));
 
 // Dedicated Fast Mobile OTP Login (Secured for registered staff and admin)
