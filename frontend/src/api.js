@@ -1,4 +1,4 @@
-const PROD_API = 'https://lease-delicious-cal-night.trycloudflare.com/api';
+const PROD_API = 'https://doors-strain-without-hostel.trycloudflare.com/api';
 const isRemoteHost = typeof window !== 'undefined' && (
   window.location.hostname.includes('vercel.app') || 
   (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.hostname.includes('trycloudflare.com'))

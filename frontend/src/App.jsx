@@ -77,8 +77,8 @@ function Auth({onLogin}) {
   const [name, setName] = useState('');
   
   // Keep existing email selected for Web and App
-  const [email, setEmail] = useState(() => getRememberedEmail());
-  const [rememberEmail, setRememberEmail] = useState(true);
+  const [email, setEmail] = useState('');
+  const [rememberEmail, setRememberEmail] = useState(false);
 
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('manager');
@@ -87,7 +87,7 @@ function Auth({onLogin}) {
 
   // Staff Portal Login state
   const [staffCode, setStaffCode] = useState('');
-  const [staffPassword, setStaffPassword] = useState('88904');
+  const [staffPassword, setStaffPassword] = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null);
 
   const [showMobile3D, setShowMobile3D] = useState(false);
@@ -145,6 +145,7 @@ function Auth({onLogin}) {
 
   function handleEmailChange(val) {
     setEmail(val);
+    setError('');
     if (rememberEmail && val && val.trim()) {
       persistEmail(val);
     }
@@ -200,23 +201,21 @@ function Auth({onLogin}) {
         }
       } else if (res.error) {
         const code = res.error.code || '';
-        // If popup was closed or blocked, seamlessly attempt full-page Google redirect fallback
-        if (code === 'auth/popup-closed-by-user' || code === 'auth/popup-blocked' || code === 'auth/cancelled-popup-request') {
-          try {
-            sessionStorage.setItem('pending_google_auth_role', targetRole);
-            if (codeToPass) sessionStorage.setItem('pending_google_auth_code', codeToPass);
-            await tryGoogleRedirect();
-            return;
-          } catch (redirErr) {
-            setError('Google popup was closed. Tap "Sign in with Google (Redirect)" below or use password login.');
-            return;
-          }
-        }
-        if (code === 'auth/unauthorized-domain') {
-          setError('Google Sign-In: Domain authorization pending in Firebase Console. Please sign in below using password or PIN.');
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+          // Popup was closed or dismissed - cleanly return without alarming error box
+          setError('');
+          setBusy(false);
           return;
         }
-        setError(res.error.message || 'Google Sign-In failed. Please try again or use password login.');
+        if (code === 'auth/popup-blocked') {
+          setError('Browser blocked the popup window. Please sign in below using your password or PIN.');
+          return;
+        }
+        if (code === 'auth/unauthorized-domain') {
+          setError('Google Sign-In domain authorization pending. Please sign in below using your password or PIN.');
+          return;
+        }
+        setError(res.error.message || 'Google Sign-In was cancelled. Please sign in below using password or PIN.');
       }
     } catch (err) {
       setError(err.message || 'Google Sign-In error. Please try again.');
@@ -277,11 +276,11 @@ function Auth({onLogin}) {
     const trimmedPass = (staffPassword || '').trim();
 
     if (!trimmedCode) {
-      setError('Please tap your name above or enter your Employee Code / Mobile number');
+      setError('Please enter your Employee Code or Mobile number');
       return;
     }
     if (!trimmedPass) {
-      setError('Please enter your Staff PIN / Password (Default PIN is 88904)');
+      setError('Please enter your Staff PIN or Password (Default: 88904)');
       return;
     }
 
@@ -299,17 +298,10 @@ function Auth({onLogin}) {
         onLogin(d.user, d.token);
       }
     } catch (err) {
-      setError(err.message || 'Staff login failed. Verify Employee Code or Staff PIN (Default: 88904).');
+      setError(err.message || 'Staff login failed. Please verify your Employee Code and PIN (Default: 88904).');
     } finally {
       setBusy(false);
     }
-  }
-
-  function handleSelectStaff(member) {
-    setSelectedStaff(member);
-    setStaffCode(member.code);
-    if (!staffPassword) setStaffPassword('88904');
-    setError('');
   }
 
   return (
@@ -427,7 +419,19 @@ function Auth({onLogin}) {
             </button>
           </div>
 
-          {error && <div className="bg-red-50 text-red-700 p-3 rounded-xl mb-4 text-sm border border-red-200">{error}</div>}
+          {error && (
+            <div className="bg-red-50 text-red-700 p-3 rounded-xl mb-4 text-xs sm:text-sm border border-red-200 flex items-start justify-between gap-2 shadow-xs">
+              <div className="flex-1">{error}</div>
+              <button
+                type="button"
+                onClick={() => setError('')}
+                className="text-red-400 hover:text-red-700 font-bold px-1.5 py-0.5 text-base leading-none rounded"
+                aria-label="Dismiss error"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           {/* TAB 1: ADMIN LOGIN */}
           {loginTab === 'admin' && (
@@ -476,14 +480,14 @@ function Auth({onLogin}) {
 
               {/* Email or Mobile Number */}
               <div className="mb-4">
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email or Mobile Number</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email or Username</label>
                 <input
                   className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-medium"
                   type="text"
                   autoCapitalize="none"
                   value={email}
                   onChange={e => handleEmailChange(e.target.value)}
-                  placeholder="e.g. maddelabharath20@gmail.com"
+                  placeholder="Enter Admin Email or Username"
                   required
                 />
                 <div className="flex items-center justify-between mt-1.5 px-0.5">
@@ -517,30 +521,17 @@ function Auth({onLogin}) {
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-700">Password</label>
-                  {!isSignUp ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('maddelabharath20@gmail.com');
-                        setPassword('Mv@88904');
-                        setError('');
-                      }}
-                      className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold hover:underline flex items-center gap-1"
-                      title="Auto-fill admin credentials"
-                    >
-                      <Sparkles size={11} className="text-amber-500" />
-                      <span>1-Tap Fill Admin</span>
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-slate-400">Master / Admin Password</span>
-                  )}
+                  {!isSignUp && <span className="text-[11px] text-slate-400">Admin Password</span>}
                 </div>
                 <input
                   className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold"
                   type="password"
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  onChange={e => {
+                    setPassword(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="Enter your password"
                   required
                 />
                 {isSignUp && <p className="text-[11px] text-slate-400 mt-1">Must be at least 6 characters</p>}
@@ -639,7 +630,7 @@ function Auth({onLogin}) {
           {/* TAB 2: STAFF LOGIN */}
           {loginTab === 'staff' && (
             <form onSubmit={submitStaff} className="w-full">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
                     <HardHat size={20} />
@@ -649,50 +640,11 @@ function Auth({onLogin}) {
                     <p className="text-slate-500 text-xs">Factory, Mill, Hitachi, Drivers & Workers</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                  1-Tap Access
-                </span>
-              </div>
-
-              {/* Quick Tap Profile Selector Chips */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                    <Sparkles size={13} className="text-amber-500" />
-                    <span>Quick Select Your Name:</span>
-                  </label>
-                  <span className="text-[10px] text-slate-400">Tap below to fill</span>
-                </div>
-                <div className="max-h-40 overflow-y-auto p-1.5 border rounded-xl bg-slate-50/70">
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {STAFF_LIST.map(member => {
-                      const isSelected = (selectedStaff?.code === member.code) || (staffCode === member.code);
-                      return (
-                        <button
-                          key={member.code}
-                          type="button"
-                          onClick={() => handleSelectStaff(member)}
-                          className={`text-left p-2 rounded-lg border text-xs transition flex items-center justify-between gap-1.5 ${
-                            isSelected
-                              ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-bold shadow-xs'
-                              : 'bg-white border-slate-200 hover:border-emerald-300 text-slate-700'
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <p className="font-bold truncate text-[11px]">{member.name}</p>
-                            <p className="text-[9px] text-slate-500 truncate">{member.role} · #{member.code}</p>
-                          </div>
-                          {isSelected && <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
 
               {/* Employee Code / Mobile Input */}
-              <div className="mb-3">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Employee Code or Mobile Number
                 </label>
                 <div className="relative">
@@ -702,15 +654,15 @@ function Auth({onLogin}) {
                     value={staffCode}
                     onChange={e => {
                       setStaffCode(e.target.value);
-                      setSelectedStaff(null);
+                      setError('');
                     }}
-                    placeholder="e.g. 001, 005, 002, 003003, 9542938030"
+                    placeholder="Enter Employee Code or Mobile (e.g. 001, 005, 9542938030)"
                     required
                   />
                   {staffCode && (
                     <button
                       type="button"
-                      onClick={() => { setStaffCode(''); setSelectedStaff(null); }}
+                      onClick={() => { setStaffCode(''); setError(''); }}
                       className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-bold"
                     >
                       Clear
@@ -720,24 +672,27 @@ function Auth({onLogin}) {
               </div>
 
               {/* Staff PIN / Password */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-1">
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-700">Staff PIN / Password</label>
                   <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Default PIN: 88904
+                    PIN: 88904
                   </span>
                 </div>
                 <input
                   className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-600 text-sm font-semibold tracking-wider"
                   type="password"
                   value={staffPassword}
-                  onChange={e => setStaffPassword(e.target.value)}
-                  placeholder="88904"
+                  onChange={e => {
+                    setStaffPassword(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="Enter your PIN or password"
                   required
                 />
-                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
                   <Lock size={11} className="text-emerald-600 shrink-0" />
-                  <span>All employees can sign in with PIN <strong className="text-slate-800">88904</strong></span>
+                  <span>All employees can sign in with PIN <strong className="text-slate-800">88904</strong> or personal password</span>
                 </p>
               </div>
 
