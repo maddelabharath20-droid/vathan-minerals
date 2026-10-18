@@ -29,7 +29,13 @@ function playBiometricChime(success) {
 }
 
 export default function StaffPortal({ user, onLogout }) {
+  const isProp = Boolean(
+    user?.role === 'admin' ||
+    (user?.name && user.name.toLowerCase().includes('subbaiah')) ||
+    (user?.email && (user.email.toLowerCase().includes('subbaiah') || user.email.includes('vathanminerals6336') || user.email.includes('owner.proprietor')))
+  );
   const isManager = Boolean(
+    isProp ||
     user?.role === 'manager' ||
     user?.role === 'admin' ||
     ['009', '010', 'B-001', '002', '005'].includes(user?.employee_code) ||
@@ -38,6 +44,7 @@ export default function StaffPortal({ user, onLogout }) {
     user?.job_title?.toLowerCase().includes('incharge') ||
     user?.job_title?.toLowerCase().includes('officer')
   );
+  const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : user.name;
   const [activeTab, setActiveTab] = useState('overview'); // overview, attendance, leaves, salary, kiosk
   const [attendanceData, setAttendanceData] = useState({ stats: {}, history: [] });
   const [leaves, setLeaves] = useState([]);
@@ -259,9 +266,9 @@ export default function StaffPortal({ user, onLogout }) {
                 {user.name?.charAt(0) || 'S'}
               </div>
               <div className="hidden sm:block text-left">
-                <p className="text-xs font-bold leading-tight">{user.name}</p>
+                <p className="text-xs font-bold leading-tight">{displayName}</p>
                 <p className="text-[10px] text-emerald-400 font-semibold">
-                  {isManager ? 'Operations Manager (Attendance Officer)' : (user.job_title || 'Staff Specialist')} · {user.employee_code}
+                  {isProp ? 'Proprietor & Admin (Prop Account)' : isManager ? 'Operations Manager (Attendance Officer)' : (user.job_title || 'Staff Specialist')} · {user.employee_code || 'PROP'}
                 </p>
               </div>
             </div>
@@ -301,10 +308,10 @@ export default function StaffPortal({ user, onLogout }) {
                 <span className="text-xs text-slate-400">· VATHAN MINERALS Hub</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
-                Namaste, {user.name} 👋
+                Namaste, {displayName} 👋
               </h1>
               <p className="text-slate-300 text-sm mt-1 max-w-xl">
-                Designation: <span className="font-semibold text-white">{isManager ? 'Operations Manager (Attendance Officer)' : (user.job_title || 'Plant Team Specialist')}</span>. Check your daily attendance records, leave approval status, and monthly salary disbursements.
+                Designation: <span className="font-semibold text-white">{isProp ? 'Proprietor & Admin (Prop Account)' : isManager ? 'Operations Manager (Attendance Officer)' : (user.job_title || 'Plant Team Specialist')}</span>. Check your daily attendance records, leave approval status, and monthly salary disbursements.
               </p>
             </div>
 

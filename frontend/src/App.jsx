@@ -1374,7 +1374,13 @@ function Reports() {
     </div>
   );
   if(!user)return <Auth onLogin={handleLogin}/>;
-  if(user.role === 'staff') return <StaffPortal user={user} onLogout={logout} />;
+  const isProp = Boolean(
+    user?.role === 'admin' ||
+    (user?.name && user.name.toLowerCase().includes('subbaiah')) ||
+    (user?.email && (user.email.toLowerCase().includes('subbaiah') || user.email.includes('vathanminerals6336') || user.email.includes('owner.proprietor')))
+  );
+  const displayName = isProp ? 'MADDELA VENKATA SUBBAIAH' : user.name;
+  if(user.role === 'staff' && !isProp) return <StaffPortal user={user} onLogout={logout} />;
   const module=Object.keys(configs).find(k=>configs[k].title===active);
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1416,10 +1422,10 @@ function Reports() {
 
         {/* User Profile & Sign Out */}
         <div className="p-4 border-t border-white/10 bg-slate-950/90">
-          <div className="text-sm font-bold truncate text-white">{user.name}</div>
+          <div className="text-sm font-bold truncate text-white">{displayName}</div>
           <div className="text-[11px] font-black uppercase tracking-wider text-emerald-400 mt-0.5">
-            {user.role === 'admin' 
-              ? 'Proprietor Account (Prop Account)' 
+            {isProp 
+              ? 'Proprietor & Admin (Prop Account)' 
               : user.role === 'manager' 
                 ? 'Plant Manager (Attendance Officer)' 
                 : `${user.role} Account`}
@@ -1454,10 +1460,10 @@ function Reports() {
 
           <div className="flex items-center gap-3">
             <div className="hidden md:flex flex-col text-right">
-              <span className="text-xs font-bold text-slate-800">{user.name}</span>
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
-                {user.role === 'admin' 
-                  ? 'Prop Account · Proprietor' 
+              <span className="text-xs font-black tracking-tight text-slate-900">{displayName}</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block self-end mt-0.5">
+                {isProp 
+                  ? 'Proprietor & Admin (Prop Account)' 
                   : user.role === 'manager' 
                     ? 'Operations Manager · Taking Attendance' 
                     : user.role}
@@ -1467,7 +1473,7 @@ function Reports() {
               {new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
             </span>
             <span className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 grid place-items-center font-black text-sm shadow-xs">
-              {user.name.slice(0,1).toUpperCase()}
+              {displayName.slice(0,1).toUpperCase()}
             </span>
           </div>
         </header>

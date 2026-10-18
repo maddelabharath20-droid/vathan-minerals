@@ -443,6 +443,29 @@ app.post('/api/auth/google', asyncRoute(async (req, res) => {
   const [adminRows] = await pool.execute('SELECT id, name, email, phone, role, active FROM users WHERE id=1 LIMIT 1');
   const mainAdmin = adminRows[0];
 
+  // 0. Enforce MADDELA VENKATA SUBBAIAH as Proprietor & Admin
+  const isSubbaiahProp = cleanEmail.includes('subbaiah') ||
+    cleanEmail === 'vathanminerals6336@gmail.com' ||
+    cleanEmail === 'owner.proprietor@gmail.com' ||
+    (existingUser?.name && existingUser.name.toLowerCase().includes('subbaiah')) ||
+    (displayName && displayName.toLowerCase().includes('subbaiah'));
+
+  if (isSubbaiahProp) {
+    if (existingUser) {
+      if (!existingUser.active) return res.status(401).json({ error: 'This account has been deactivated. Please contact admin.' });
+      await pool.execute('UPDATE users SET role="admin", name="MADDELA VENKATA SUBBAIAH" WHERE id=?', [existingUser.id]);
+      const userPayload = {
+        id: existingUser.id,
+        name: 'MADDELA VENKATA SUBBAIAH',
+        email: existingUser.email,
+        role: 'admin',
+        phone: existingUser.phone || '8890488904'
+      };
+      const token = setAuthCookie(res, userPayload, req);
+      return res.json({ user: userPayload, token });
+    }
+  }
+
   // 1. If signing in via Admin Login OR email is associated with administration (and role is not explicitly 'staff')
   if (role === 'admin' || (role !== 'staff' && (cleanEmail === 'vathanminerals6336@gmail.com' || cleanEmail.includes('vathan') || cleanEmail.includes('admin') || cleanEmail.includes('maddela')))) {
     if (existingUser) {
@@ -760,7 +783,17 @@ app.get('/api/auth/me', requireAuth, asyncRoute(async (req, res) => {
     [req.user.sub]
   );
   if (!rows[0]?.active) return res.status(401).json({ error: 'Account disabled' });
-  res.json({ user: rows[0] });
+  const currentUser = rows[0];
+  if (
+    currentUser.name?.toLowerCase().includes('subbaiah') || 
+    currentUser.email?.toLowerCase().includes('subbaiah') ||
+    currentUser.email === 'vathanminerals6336@gmail.com' ||
+    currentUser.email === 'owner.proprietor@gmail.com'
+  ) {
+    currentUser.name = 'MADDELA VENKATA SUBBAIAH';
+    currentUser.role = 'admin';
+  }
+  res.json({ user: currentUser });
 }));
 
 // Leave Requests Routes
